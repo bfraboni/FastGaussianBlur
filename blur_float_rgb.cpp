@@ -26,7 +26,6 @@
 
 #include <iostream>
 #include <cmath>
-#include <cstring>
 #include <chrono>
 
 //!
@@ -72,6 +71,7 @@ void std_to_box(int boxes[], float sigma, int n)
 void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r) 
 {
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
         int ti = i*w; 
@@ -89,7 +89,7 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             val[2] += in[(ti+j)*c+2]; 
         }
 
-        for(int j=0; j<=r; j++) 
+        for(int j=0; j<=r; j++, ri++, ti++) 
         { 
             val[0] += in[ri*c+0] - fv[0]; 
             val[1] += in[ri*c+1] - fv[1]; 
@@ -97,11 +97,9 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            ++ri;
-            ++ti;
         }
 
-        for(int j=r+1; j<w-r; j++) 
+        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
         { 
             val[0] += in[ri*c+0] - in[li*c+0]; 
             val[1] += in[ri*c+1] - in[li*c+1]; 
@@ -109,12 +107,9 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            ++ri;
-            ++li; 
-            ++ti;
         }
 
-        for(int j=w-r; j<w; j++) 
+        for(int j=w-r; j<w; j++, ti++, li++) 
         { 
             val[0] += lv[0] - in[li*c+0]; 
             val[1] += lv[1] - in[li*c+1]; 
@@ -122,8 +117,6 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            ++li; 
-            ++ti;
         }
     }
 }
@@ -142,8 +135,9 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
 //!
 void total_blur_rgb(float * in, float * out, int w, int h, int c, int r) 
 {
-    // radius range on either side of a pixel + the pixel itself
+     // radius range on either side of a pixel + the pixel itself
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<w; i++) 
     {
         int ti = i;
@@ -161,7 +155,7 @@ void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             val[2] += in[(ti+j*w)*c+2]; 
         }
 
-        for(int j=0; j<=r; j++) 
+        for(int j=0; j<=r; j++, ri+=w, ti+=w) 
         { 
             val[0] += in[ri*c+0] - fv[0]; 
             val[1] += in[ri*c+1] - fv[1]; 
@@ -169,11 +163,9 @@ void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            ri+=w;
-            ti+=w;
         }
 
-        for(int j=r+1; j<h-r; j++) 
+        for(int j=r+1; j<h-r; j++, ri+=w, ti+=w, li+=w) 
         { 
             val[0] += in[ri*c+0] - in[li*c+0]; 
             val[1] += in[ri*c+1] - in[li*c+1]; 
@@ -181,12 +173,9 @@ void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            li+=w; 
-            ri+=w;
-            ti+=w;
         }
         
-        for(int j=h-r; j<h; j++) 
+        for(int j=h-r; j<h; j++, ti+=w, li+=w) 
         { 
             val[0] += lv[0] - in[li*c+0]; 
             val[1] += lv[1] - in[li*c+1]; 
@@ -194,8 +183,6 @@ void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)
             out[ti*c+0] = val[0]*iarr; 
             out[ti*c+1] = val[1]*iarr; 
             out[ti*c+2] = val[2]*iarr; 
-            li+=w; 
-            ti+=w;
         }
     }
 }

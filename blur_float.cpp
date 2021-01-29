@@ -6,7 +6,6 @@
 // to : https://mit-license.org/
 //
 
-
 //!
 //! \file blur.cpp
 //! \author Basile Fraboni
@@ -56,6 +55,7 @@ void std_to_box(int boxes[], float sigma, int n)
     for(int i=0; i<n; i++) 
         boxes[i] = ((i < m ? wl : wu) - 1) / 2;
 }
+
 //!
 //! \fn void horizontal_blur(float * in, float * out, int w, int h, int r)    
 //!
@@ -70,6 +70,7 @@ void std_to_box(int boxes[], float sigma, int n)
 void horizontal_blur(float * in, float * out, int w, int h, int r) 
 {
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
         int ti = i*w, li = ti, ri = ti+r;
@@ -96,6 +97,7 @@ void horizontal_blur(float * in, float * out, int w, int h, int r)
 void total_blur(float * in, float * out, int w, int h, int r) 
 {
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<w; i++) 
     {
         int ti = i, li = ti, ri = ti+r*w;

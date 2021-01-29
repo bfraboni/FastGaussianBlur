@@ -26,7 +26,6 @@
 
 #include <iostream>
 #include <cmath>
-#include <cstring>
 #include <chrono>
 
 //!
@@ -71,6 +70,7 @@ void std_to_box(int boxes[], float sigma, int n)
 void horizontal_blur(int * in, int * out, int w, int h, int r) 
 {
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
         int ti = i*w, li = ti, ri = ti+r, fv = in[ti], lv = in[ti+w-1], val = (r+1)*fv;
@@ -95,6 +95,7 @@ void horizontal_blur(int * in, int * out, int w, int h, int r)
 void total_blur(int * in, int * out, int w, int h, int r) 
 {
     float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
     for(int i=0; i<w; i++) 
     {
         int ti = i, li = ti, ri = ti+r*w, fv = in[ti], lv = in[ti+w*(h-1)], val = (r+1)*fv;
