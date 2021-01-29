@@ -30,7 +30,7 @@ Run the program with the following command:
 `./program <input_image_filename> <sigma> <output_image_filename>`
 
 - program can be any of `blur_float_rgb`, `blur_float`, `blur_int_rgb`, `blur_int`
-- output_image_filename should be a .PNG
+- output_image_filename should be any of [.png, .jpg, .bmp] 
 - sigma is the desired Gaussian blur standard deviation (should be positive).
 
 ## Results
