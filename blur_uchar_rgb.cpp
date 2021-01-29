@@ -262,8 +262,7 @@ int main(int argc, char * argv[])
     uchar * old_image = new uchar[size];
 
     // channels copy r,g,b
-    for(int i = 0; i < size; ++i)
-        old_image[i] = image_data[i];
+    std::memcpy(old_image, image_data, size);
 
     // per channel filter
     auto start = std::chrono::system_clock::now();
