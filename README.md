@@ -37,6 +37,10 @@ The fast Gaussian blur approx is linear in time regarding the size of the input 
 |:---:|:---:|:---:|:---:|:---:|:---:|
 ![](data/demo.png)|![](data/blur2.png)|![](data/blur5.png)|![](data/blur10.png)|![](data/blur30.png)|![](data/blur50.png)|
 
+## Performance
+
+![](data/time.png)
+
 ## Licence
 
 You may use, distribute and modify this code under the terms of the MIT license. For further details please refer to : https://mit-license.org/
