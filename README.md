@@ -39,7 +39,10 @@ The fast Gaussian blur approx is linear in time regarding the size of the input 
 
 ## Performance
 
-![Exectution time of blur_uchar_rgb_no_round w.r.t pixel number (OpenMP active)](data/time.png)
+![](data/time.png)
+
+The above graph shows the average exectution time of `blur_uchar_rgb_no_round` w.r.t pixel number (OpenMP enabled).
+- [ ] TODO Comparison with other implementations.
 
 ## Licence
 
