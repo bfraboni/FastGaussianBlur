@@ -208,9 +208,23 @@ int main(int argc, char * argv[])
         image_data[channels * i + 1] = (unsigned char) std::min(255.f, std::max(0.f, 255.f * newg[i]));
         image_data[channels * i + 2] = (unsigned char) std::min(255.f, std::max(0.f, 255.f * newr[i]));
     }
-
+    
     // save
-    stbi_write_png(output_file, width, height, channels, image_data, channels*width);
+    std::string file(output_file);
+    std::string ext = file.substr(file.size()-3);
+    if( ext == "bmp" )
+        stbi_write_bmp(output_file, width, height, channels, image_data);
+    else if( ext == "jpg" )
+        stbi_write_jpg(output_file, width, height, channels, image_data, 90);
+    else
+    {
+        if( ext != "png" )
+        {
+            std::cout << "format '" << ext << "' not supported writing default .png" << std::endl; 
+            file = file.substr(0, file.size()-4) + std::string(".png");
+        }
+        stbi_write_png(file.c_str(), width, height, channels, image_data, channels*width);
+    }
     stbi_image_free(image_data);
 
     // clean memory

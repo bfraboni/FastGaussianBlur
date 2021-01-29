@@ -30,7 +30,7 @@
 #include <chrono>
 
 //!
-//! \fn void std_to_box (float boxes[], float sigma, int n)  
+//! \fn void std_to_box(float boxes[], float sigma, int n)  
 //!
 //! \brief this function converts the standard deviation of 
 //! Gaussian blur into dimensions of boxes for box blur. For 
@@ -42,7 +42,7 @@
 //! \param[in] sigma    Gaussian standard deviation
 //! \param[in] n        number of boxes
 //!
-void std_to_box (int boxes[], float sigma, int n)  
+void std_to_box(int boxes[], float sigma, int n)  
 {
     // ideal filter width
     float wi = std::sqrt((12*sigma*sigma/n)+1); 
@@ -58,7 +58,7 @@ void std_to_box (int boxes[], float sigma, int n)
 }
 
 //!
-//! \fn void horizontal_blur (int * in, int * out, int w, int h, int c, int r)   
+//! \fn void horizontal_blur_rgb(int * in, int * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs the horizontal blur pass for box blur. 
 //!
@@ -69,7 +69,7 @@ void std_to_box (int boxes[], float sigma, int n)
 //! \param[in] c            image channels
 //! \param[in] r            box dimension
 //!
-void horizontal_blur_rgb (int * in, int * out, int w, int h, int c, int r) 
+void horizontal_blur_rgb(int * in, int * out, int w, int h, int c, int r) 
 {
     float iarr = 1.f / (r+r+1);
     for(int i=0; i<h; i++) 
@@ -129,7 +129,7 @@ void horizontal_blur_rgb (int * in, int * out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void total_blur (int * in, int * out, int w, int h, int c, int r)   
+//! \fn void total_blur_rgb(int * in, int * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs the total blur pass for box blur. 
 //!
@@ -140,7 +140,7 @@ void horizontal_blur_rgb (int * in, int * out, int w, int h, int c, int r)
 //! \param[in] c            image channels
 //! \param[in] r            box dimension
 //!
-void total_blur_rgb (int * in, int * out, int w, int h, int c, int r) 
+void total_blur_rgb(int * in, int * out, int w, int h, int c, int r) 
 {
     // radius range on either side of a pixel + the pixel itself
     float iarr = 1.f / (r+r+1);
@@ -201,7 +201,7 @@ void total_blur_rgb (int * in, int * out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void box_blur (int * in, int * out, int w, int h, int c, int r)   
+//! \fn void box_blur_rgb(int * in, int * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs a box blur pass. 
 //!
@@ -212,7 +212,7 @@ void total_blur_rgb (int * in, int * out, int w, int h, int c, int r)
 //! \param[in] c            image channels
 //! \param[in] r            box dimension
 //!
-void box_blur_rgb (int *& in, int *& out, int w, int h, int c, int r) 
+void box_blur_rgb(int *& in, int *& out, int w, int h, int c, int r) 
 {
     std::swap(in, out);
     horizontal_blur_rgb(out, in, w, h, c, r);
@@ -222,7 +222,7 @@ void box_blur_rgb (int *& in, int *& out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void fast_gaussian_blur (int * in, int * out, int w, int h, int c, float sigma)   
+//! \fn void fast_gaussian_blur_rgb(int * in, int * out, int w, int h, int c, float sigma)   
 //!
 //! \brief this function performs a fast Gaussian blur. Applying several
 //! times box blur tends towards a true Gaussian blur. Three passes are sufficient
@@ -236,7 +236,7 @@ void box_blur_rgb (int *& in, int *& out, int w, int h, int c, int r)
 //! \param[in] c            image channels
 //! \param[in] sigma        gaussian std dev
 //!
-void fast_gaussian_blur_rgb (int *& in, int *& out, int w, int h, int c, float sigma) 
+void fast_gaussian_blur_rgb(int *& in, int *& out, int w, int h, int c, float sigma) 
 {
     // sigma conversion to box dimensions
     int boxes[3];
@@ -289,7 +289,21 @@ int main(int argc, char * argv[])
         image_data[i] = (unsigned char) std::min(255, std::max(0, new_image[i]));
 
     // save
-    stbi_write_png(output_file, width, height, channels, image_data, channels*width);
+    std::string file(output_file);
+    std::string ext = file.substr(file.size()-3);
+    if( ext == "bmp" )
+        stbi_write_bmp(output_file, width, height, channels, image_data);
+    else if( ext == "jpg" )
+        stbi_write_jpg(output_file, width, height, channels, image_data, 90);
+    else
+    {
+        if( ext != "png" )
+        {
+            std::cout << "format '" << ext << "' not supported writing default .png" << std::endl; 
+            file = file.substr(0, file.size()-4) + std::string(".png");
+        }
+        stbi_write_png(file.c_str(), width, height, channels, image_data, channels*width);
+    }
     stbi_image_free(image_data);
 
     // clean memory

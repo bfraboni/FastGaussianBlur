@@ -58,7 +58,7 @@ void std_to_box(int boxes[], float sigma, int n)
 }
 
 //!
-//! \fn void horizontal_blur(float * in, float * out, int w, int h, int c, int r)   
+//! \fn void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs the horizontal blur pass for box blur. 
 //!
@@ -129,7 +129,7 @@ void horizontal_blur_rgb(float * in, float * out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void total_blur(float * in, float * out, int w, int h, int c, int r)   
+//! \fn void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs the total blur pass for box blur. 
 //!
@@ -201,7 +201,7 @@ void total_blur_rgb(float * in, float * out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void box_blur(float * in, float * out, int w, int h, int c, int r)   
+//! \fn void box_blur_rgb(float * in, float * out, int w, int h, int c, int r)   
 //!
 //! \brief this function performs a box blur pass. 
 //!
@@ -222,7 +222,7 @@ void box_blur_rgb(float *& in, float *& out, int w, int h, int c, int r)
 }
 
 //!
-//! \fn void fast_gaussian_blur(float * in, float * out, int w, int h, int c, float sigma)   
+//! \fn void fast_gaussian_blur_rgb(float * in, float * out, int w, int h, int c, float sigma)   
 //!
 //! \brief this function performs a fast Gaussian blur. Applying several
 //! times box blur tends towards a true Gaussian blur. Three passes are sufficient
@@ -289,7 +289,21 @@ int main(int argc, char * argv[])
         image_data[i] = (unsigned char) std::min(255.f, std::max(0.f, 255.f * new_image[i]));
 
     // save
-    stbi_write_png(output_file, width, height, channels, image_data, channels*width);
+    std::string file(output_file);
+    std::string ext = file.substr(file.size()-3);
+    if( ext == "bmp" )
+        stbi_write_bmp(output_file, width, height, channels, image_data);
+    else if( ext == "jpg" )
+        stbi_write_jpg(output_file, width, height, channels, image_data, 90);
+    else
+    {
+        if( ext != "png" )
+        {
+            std::cout << "format '" << ext << "' not supported writing default .png" << std::endl; 
+            file = file.substr(0, file.size()-4) + std::string(".png");
+        }
+        stbi_write_png(file.c_str(), width, height, channels, image_data, channels*width);
+    }
     stbi_image_free(image_data);
 
     // clean memory
