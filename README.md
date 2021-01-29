@@ -13,15 +13,11 @@ There are several implementations, from slowest to fastest:
 - unsigned char buffer all channels blur in `blur_uchar_rgb.cpp`
 - unsigned char buffer all channels blur in `blur_uchar_rgb_no_round.cpp`. This version throws every `std::round` call in separable blur passes. Note that the result is slightly darker than it should be. But this version is the fastest I came up with.
 
-Integer versions are slower due to additional float -> int and int -> float casts and `std::round` calls. 
-The fastest version blurs 160k pixels in ~3ms, and 1000k pixels in ~70ms on a single core of a Ryzen 7 2700X CPU without OpenMP.
-The fastest version blurs 160k pixels in ~1ms, and 1000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP
-Hence it may be used for real-time applications with reasonable image resolutions.
-A SIMD vectorized or a GPU version of this algorithm could be significantly faster.
+Integer versions are slower due to additional float -> int and int -> float casts and `std::round` calls. The fastest version blurs 160k pixels in ~3ms, and 1000k pixels in ~70ms on a single core of a Ryzen 7 2700X CPU without OpenMP. The fastest version blurs 160k pixels in ~1ms, and 1000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster.
 
 ## Compilation
 
-In a Unix term or WSL term you can use the provided makefile; `make all` build all targets without dependencies.
+In a Unix term or WSL term you can use the provided makefile; use `make all` to build all targets without dependencies.
 
 ## Usage
 
