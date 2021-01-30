@@ -41,7 +41,7 @@ The fast Gaussian blur approx is linear in time regarding the size of the input 
 
 ![](data/time.png)
 
-The above graph shows the average exectution time of blur algorithm w.r.t pixel number.
+The above graph shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X.
 
 ## Licence
 
