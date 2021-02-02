@@ -6,6 +6,8 @@
 // to : https://mit-license.org/
 //
 
+#include <omp.h>
+
 //!
 //! \file fast_gaussian_blur.h
 //! \author Basile Fraboni
@@ -398,14 +400,6 @@ void fast_gaussian_tonly(uchar *& in, uchar *& out, int w, int h, int c, float s
     total_blur(in, out, w, h, c, boxes[2]);
 }
 
-// transpose index
-// std::size_t index(std::size_t w, std::size_t h, std::size_t i)
-// {
-//     const std::size_t b = w * h - 1;
-//     if(i == b) return b;
-//     return h * i % b;
-// }
-
 void transpose(uchar * in, uchar * out, int w, int h, int c)
 {
     const std::size_t b = w * h - 1;
@@ -418,6 +412,62 @@ void transpose(uchar * in, uchar * out, int w, int h, int c)
     }
 }
 
+#define HORIZONTAL(in, out, w, h, c, r)(\
+{ \
+    float iarr = 1.f / (r+r+1);\
+    _Pragma("omp for")\
+    for(int i=0; i<h; i++) \
+    {\
+        int ti = i*w; \
+        int li = ti;  \
+        int ri = ti+r;\
+        int fv[4], lv[4], val[4];\
+        for(int ch = 0; ch < c; ++ch)\
+        {\
+            fv[ch] = in[ti*c+ch];\
+            lv[ch] = in[(ti+w-1)*c+ch];\
+            val[ch] = (r+1)*fv[ch];\
+        }\
+        for(int j=0; j<r; j++) \
+        for(int ch = 0; ch < c; ++ch)\
+        {\
+            val[ch] += in[(ti+j)*c+ch]; \
+        }\
+        for(int j=0; j<=r; j++, ri++, ti++) \
+        for(int ch = 0; ch < c; ++ch)\
+        { \
+            val[ch] += in[ri*c+ch] - fv[ch]; \
+            out[ti*c+ch] = val[ch]*iarr+0.5f;\
+        }\
+        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) \
+        for(int ch = 0; ch < c; ++ch)\
+        { \
+            val[ch] += in[ri*c+ch] - in[li*c+ch]; \
+            out[ti*c+ch] = val[ch]*iarr+0.5f;\
+        }\
+        for(int j=w-r; j<w; j++, ti++, li++) \
+        for(int ch = 0; ch < c; ++ch)\
+        { \
+            val[ch] += lv[ch] - in[li*c+ch]; \
+            out[ti*c+ch] = val[ch]*iarr+0.5f;\
+        }\
+    }\
+}\
+)
+
+#define TRANSPOSE(in, out, w, h, c)(\
+{ \
+    const std::size_t b = w * h - 1;\
+    _Pragma("omp for")\
+    for(std::size_t i = 0; i < b+1; i++)\
+    {\
+        std::size_t o = i == b ? b : h * i % b;\
+        for(int ch = 0; ch < c; ch++)\
+            out[o*c+ch] = in[i*c+ch];\
+    }\
+}\
+)
+
 void fast_gaussian_blur_test(uchar *& in, uchar *& out, int& w, int& h, int c, float sigma) 
 {
     // sigma conversion to box dimensions for 3 passes
@@ -425,22 +475,17 @@ void fast_gaussian_blur_test(uchar *& in, uchar *& out, int& w, int& h, int c, f
     int boxes[3];
     sigma_to_box_radius(boxes, sigma, n);
 
-    // 3x horizontal pass
-    horizontal_blur(in, out, w, h, c, boxes[0]);
-    horizontal_blur(out, in, w, h, c, boxes[1]);
-    horizontal_blur(in, out, w, h, c, boxes[2]);
-
-    // transpose image
-    transpose(out, in, w, h, c);
-
-    // 3x horizontal pass
-    horizontal_blur(in, out, h, w, c, boxes[0]);
-    horizontal_blur(out, in, h, w, c, boxes[1]);
-    horizontal_blur(in, out, h, w, c, boxes[2]);
-
-    // transpose image
-    transpose(out, in, h, w, c);
-
+    #pragma omp parallel
+    {
+        HORIZONTAL(in, out, w, h, c, boxes[0]);
+        HORIZONTAL(out, in, w, h, c, boxes[1]);
+        HORIZONTAL(in, out, w, h, c, boxes[2]);
+        TRANSPOSE(out, in, w, h, c);
+        HORIZONTAL(in, out, h, w, c, boxes[0]);
+        HORIZONTAL(out, in, h, w, c, boxes[1]);
+        HORIZONTAL(in, out, h, w, c, boxes[2]);
+        TRANSPOSE(out, in, h, w, c);
+    }
     // swap pointers    
     std::swap(in, out);
 }
