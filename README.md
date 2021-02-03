@@ -11,10 +11,9 @@ There are several implementations, from slowest to fastest:
 - integer buffer all channels blur in `blur_int_rgb.cpp`
 - floating point buffer all channels blur in `blur_float_rgb.cpp`
 - unsigned char buffer all channels blur in `blur_uchar_rgb.cpp`
-- unsigned char buffer all channels blur in `blur_uchar_rgb_no_round.cpp`. This version throws every `std::round` call in separable blur passes. Note that the result is slightly darker than it should be. But this version is the fastest I came up with. 
+- `fast_gaussian_blur.h` is a WIP header that regroup the implementations, ands the last cache coherent version that has not its own example file for now.
 
-
-Integer versions are slower due to additional float -> int and int -> float casts and `std::round` calls. The fastest version blurs 160k pixels in ~3ms, and 1000k pixels in ~70ms on a single core of a Ryzen 7 2700X CPU without OpenMP. The fastest version blurs 160k pixels in ~1ms, and 1000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster.
+Integer versions are slower due to additional float -> int and int -> float casts. The fastest version blurs 2000k pixels in ~15ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes).
 
 ## Compilation
 
@@ -40,9 +39,9 @@ The fast Gaussian blur approx is linear in time regarding the size of the input 
 
 ## Performance
 
-![](data/time.png)
+![](data/time.pdf)
 
-The above graph shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X.
+The above graph shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X. The dashed blue line highlights the fact that column major traversal of large image buffer may result in cache incohenrency. Hence we can perform image buffer transpositions and only cache coherent row major traversals to mitigate the problem. However the transposition step is not a cache friendly operation thus on large image buffer we observe the blue slope slowly increasing w.r.t image size.    
 
 ## Licence
 
@@ -50,5 +49,4 @@ You may use, distribute and modify this code under the terms of the MIT license.
 
 ## TODO
 
-- [ ] change std::round by adding 0.5f + cast
 - [ ] to read [recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
