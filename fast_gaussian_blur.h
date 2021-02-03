@@ -25,6 +25,7 @@ void sigma_to_box_radius(int boxes[], float sigma, int n);
 int sigma_to_kernel_radius(float sigma);
 float gaussian( float x, float mu, float sigma );
 void make_gaussian_kernel(float sigma, float *& kernel, int& k);
+void transpose(uchar * in, uchar * out, int w, int h, int c);
 
 void horizontal_blur(float * in, float * out, int w, int h, int c, int r); 
 void horizontal_blur(uchar * in, uchar * out, int w, int h, int c, int r); 
@@ -32,11 +33,9 @@ void horizontal_blur(uchar * in, uchar * out, int w, int h, int c, int r);
 void total_blur(float * in, float * out, int w, int h, int c, int r); 
 void total_blur(uchar * in, uchar * out, int w, int h, int c, int r); 
 
-void box_blur(float *& in, float *& out, int w, int h, int c, int r); 
-void box_blur(uchar *& in, uchar *& out, int w, int h, int c, int r); 
-
 void fast_gaussian_blur(float *& in, float *& out, int w, int h, int c, float sigma); 
 void fast_gaussian_blur(uchar *& in, uchar *& out, int w, int h, int c, float sigma); 
+void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c, float sigma); 
 
 void gaussian_blur(float * in, float * out, int w, int h, int c, float * kernel, int k);
 void gaussian_blur(uchar * in, uchar * out, int w, int h, int c, float * kernel, int k);
@@ -370,122 +369,36 @@ void fast_gaussian_blur(uchar *& in, uchar *& out, int w, int h, int c, float si
     total_blur(in, out, w, h, c, boxes[2]);
 }
 
-void fast_gaussian_honly(uchar *& in, uchar *& out, int w, int h, int c, float sigma) 
-{
-    // sigma conversion to box dimensions for 3 passes
-    int n = 3;
-    int boxes[3];
-    float weights[3];
-    sigma_to_box_radius(boxes, sigma, n);
-    for(int i = 0; i < n; ++i)
-        weights[i] = 1.f / (2 * boxes[i] + 1);
-
-    horizontal_blur(in, out, w, h, c, boxes[0]);
-    horizontal_blur(out, in, w, h, c, boxes[1]);
-    horizontal_blur(in, out, w, h, c, boxes[2]);
-}
-
-void fast_gaussian_tonly(uchar *& in, uchar *& out, int w, int h, int c, float sigma) 
-{
-    // sigma conversion to box dimensions for 3 passes
-    int n = 3;
-    int boxes[3];
-    float weights[3];
-    sigma_to_box_radius(boxes, sigma, n);
-    for(int i = 0; i < n; ++i)
-        weights[i] = 1.f / (2 * boxes[i] + 1);
-
-    total_blur(in, out, w, h, c, boxes[0]);
-    total_blur(out, in, w, h, c, boxes[1]);
-    total_blur(in, out, w, h, c, boxes[2]);
-}
-
 void transpose(uchar * in, uchar * out, int w, int h, int c)
 {
     const std::size_t b = w * h - 1;
     #pragma omp parallel for
     for(std::size_t i = 0; i < b+1; i++)
     {
-        std::size_t o = i == b ? b : h * i % b;   // transpose index
+        std::size_t o = i == b ? b : h * i % b; // transpose index
         for(int ch = 0; ch < c; ch++)
             out[o*c+ch] = in[i*c+ch];
     }
 }
 
-#define HORIZONTAL(in, out, w, h, c, r)(\
-{ \
-    float iarr = 1.f / (r+r+1);\
-    _Pragma("omp for")\
-    for(int i=0; i<h; i++) \
-    {\
-        int ti = i*w; \
-        int li = ti;  \
-        int ri = ti+r;\
-        int fv[4], lv[4], val[4];\
-        for(int ch = 0; ch < c; ++ch)\
-        {\
-            fv[ch] = in[ti*c+ch];\
-            lv[ch] = in[(ti+w-1)*c+ch];\
-            val[ch] = (r+1)*fv[ch];\
-        }\
-        for(int j=0; j<r; j++) \
-        for(int ch = 0; ch < c; ++ch)\
-        {\
-            val[ch] += in[(ti+j)*c+ch]; \
-        }\
-        for(int j=0; j<=r; j++, ri++, ti++) \
-        for(int ch = 0; ch < c; ++ch)\
-        { \
-            val[ch] += in[ri*c+ch] - fv[ch]; \
-            out[ti*c+ch] = val[ch]*iarr+0.5f;\
-        }\
-        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) \
-        for(int ch = 0; ch < c; ++ch)\
-        { \
-            val[ch] += in[ri*c+ch] - in[li*c+ch]; \
-            out[ti*c+ch] = val[ch]*iarr+0.5f;\
-        }\
-        for(int j=w-r; j<w; j++, ti++, li++) \
-        for(int ch = 0; ch < c; ++ch)\
-        { \
-            val[ch] += lv[ch] - in[li*c+ch]; \
-            out[ti*c+ch] = val[ch]*iarr+0.5f;\
-        }\
-    }\
-}\
-)
-
-#define TRANSPOSE(in, out, w, h, c)(\
-{ \
-    const std::size_t b = w * h - 1;\
-    _Pragma("omp for")\
-    for(std::size_t i = 0; i < b+1; i++)\
-    {\
-        std::size_t o = i == b ? b : h * i % b;\
-        for(int ch = 0; ch < c; ch++)\
-            out[o*c+ch] = in[i*c+ch];\
-    }\
-}\
-)
-
-void fast_gaussian_blur_test(uchar *& in, uchar *& out, int& w, int& h, int c, float sigma) 
+void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c, float sigma) 
 {
     // sigma conversion to box dimensions for 3 passes
     int n = 3;
     int boxes[3];
     sigma_to_box_radius(boxes, sigma, n);
 
-    #pragma omp parallel
-    {
-        HORIZONTAL(in, out, w, h, c, boxes[0]);
-        HORIZONTAL(out, in, w, h, c, boxes[1]);
-        HORIZONTAL(in, out, w, h, c, boxes[2]);
-        TRANSPOSE(out, in, w, h, c);
-        HORIZONTAL(in, out, h, w, c, boxes[0]);
-        HORIZONTAL(out, in, h, w, c, boxes[1]);
-        HORIZONTAL(in, out, h, w, c, boxes[2]);
-        TRANSPOSE(out, in, h, w, c);
-    }
+    horizontal_blur(in, out, w, h, c, boxes[0]);
+    horizontal_blur(out, in, w, h, c, boxes[1]);
+    horizontal_blur(in, out, w, h, c, boxes[2]);
+
+    transpose(out, in, w, h, c);
+
+    horizontal_blur(in, out, h, w, c, boxes[0]);
+    horizontal_blur(out, in, h, w, c, boxes[1]);
+    horizontal_blur(in, out, h, w, c, boxes[2]);
+
+    transpose(out, in, h, w, c);
     // swap pointers    
     std::swap(in, out);
 }
