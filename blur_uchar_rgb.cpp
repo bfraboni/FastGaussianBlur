@@ -97,9 +97,9 @@ void horizontal_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += in[ri*c+0] - fv[0]; 
             val[1] += in[ri*c+1] - fv[1]; 
             val[2] += in[ri*c+2] - fv[2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
 
         for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
@@ -107,9 +107,9 @@ void horizontal_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += in[ri*c+0] - in[li*c+0]; 
             val[1] += in[ri*c+1] - in[li*c+1]; 
             val[2] += in[ri*c+2] - in[li*c+2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
 
         for(int j=w-r; j<w; j++, ti++, li++) 
@@ -117,9 +117,9 @@ void horizontal_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += lv[0] - in[li*c+0]; 
             val[1] += lv[1] - in[li*c+1]; 
             val[2] += lv[2] - in[li*c+2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
     }
 }
@@ -163,9 +163,9 @@ void total_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += in[ri*c+0] - fv[0]; 
             val[1] += in[ri*c+1] - fv[1]; 
             val[2] += in[ri*c+2] - fv[2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
 
         for(int j=r+1; j<h-r; j++, ri+=w, ti+=w, li+=w) 
@@ -173,9 +173,9 @@ void total_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += in[ri*c+0] - in[li*c+0]; 
             val[1] += in[ri*c+1] - in[li*c+1]; 
             val[2] += in[ri*c+2] - in[li*c+2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
         
         for(int j=h-r; j<h; j++, ti+=w, li+=w) 
@@ -183,9 +183,9 @@ void total_blur_rgb(uchar * in, uchar * out, int w, int h, int c, int r)
             val[0] += lv[0] - in[li*c+0]; 
             val[1] += lv[1] - in[li*c+1]; 
             val[2] += lv[2] - in[li*c+2]; 
-            out[ti*c+0] = std::round(val[0]*iarr); 
-            out[ti*c+1] = std::round(val[1]*iarr); 
-            out[ti*c+2] = std::round(val[2]*iarr); 
+            out[ti*c+0] = val[0]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+1] = val[1]*iarr+0.5f; // avoid std::round by adding 0.5f
+            out[ti*c+2] = val[2]*iarr+0.5f; // avoid std::round by adding 0.5f
         }
     }
 }
