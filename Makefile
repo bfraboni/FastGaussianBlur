@@ -14,10 +14,7 @@ blur_int_rgb: blur_int_rgb.cpp
 blur_uchar_rgb: blur_uchar_rgb.cpp
 	g++ blur_uchar_rgb.cpp -o blur_uchar_rgb -O3 -fopenmp
 
-blur_uchar_rgb_no_round: blur_uchar_rgb_no_round.cpp
-	g++ blur_uchar_rgb_no_round.cpp -o blur_uchar_rgb_no_round -O3 -fopenmp
-
-all: blur_float blur_float_rgb blur_int blur_int_rgb blur_uchar_rgb blur_uchar_rgb_no_round
+all: blur_float blur_float_rgb blur_int blur_int_rgb blur_uchar_rgb
 
 clean:
-	rm blur_float blur_float_rgb blur_int blur_int_rgb blur_uchar_rgb blur_uchar_rgb_no_round
+	rm blur_float blur_float_rgb blur_int blur_int_rgb blur_uchar_rgb
