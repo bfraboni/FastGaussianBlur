@@ -7,6 +7,7 @@
 //
 
 #include <omp.h>
+#include <algorithm>
 
 //!
 //! \file fast_gaussian_blur.h
@@ -62,7 +63,7 @@ void sigma_to_box_radius(int boxes[], float sigma, int n)
     int wu = wl+2;
                 
     float mi = (12*sigma*sigma - n*wl*wl - 4*n*wl - 3*n)/(-4*wl - 4);
-    int m = mi+0.5f; // replaced std::round by adding 0.5f + cast ton integer
+    int m = mi+0.5f; // replaced std::round by adding 0.5f + cast to integer
                 
     for(int i=0; i<n; i++) 
         boxes[i] = ((i < m ? wl : wu) - 1) / 2;
@@ -106,7 +107,7 @@ void make_gaussian_kernel(float sigma, float *& kernel, int& k)
 //! \param[in,out] in       source channel
 //! \param[in,out] out      target channel
 //! \param[in] w            image width
-//! \param[in] h            image height
+//! \param[in] h            h
 //! \param[in] c            image channels
 //! \param[in] r            box dimension
 //!
@@ -153,6 +154,48 @@ void horizontal_blur(float * in, float * out, int w, int h, int c, int r)
         { 
             val[ch] += lv[ch] - in[li*c+ch]; 
             out[ti*c+ch] = val[ch]*iarr; 
+        }
+    }
+}
+
+void horizontal_blur_std(uchar * in, uchar * out, int w, int h, int c, int r) 
+{
+    float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        int ti = i*w; 
+        int li = ti;  
+        int ri = ti+r;
+
+        int fv[4], lv[4], val[4]; // fixed max to 4 channels 
+        std::copy( in+ti*c, in+ti*c+c, fv);
+        std::copy( in+ti*c, in+ti*c+c, val);
+        std::copy( in+(ti+w-1)*c, in+(ti+w-1)*c+c, lv);
+        std::transform( val, val+c, val, [r](int u){return u*(r+1);});
+
+        for(int j=0; j<r; j++)
+            std::transform(val, val+c, in+(ti+j)*c, val, [](int a, uchar u){return a+u;});
+
+        for(int j=0; j<=r; j++, ri++, ti++)
+        {
+            std::transform(val, val+c, in+ri*c, val,    [](int a, uchar u){return a+u;});
+            std::transform(val, val+c, fv, val,         [](int a, int b){return a-b;});
+            std::transform(val, val+c, out+ti*c,    [iarr](int a){return (int)(a*iarr+0.5f);});
+        } 
+
+        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
+        {
+            std::transform(val, val+c, in+ri*c, val,    [](int a, uchar u){return a+u;});
+            std::transform(val, val+c, in+li*c, val,    [](int a, uchar u){return a-u;});
+            std::transform(val, val+c, out+ti*c,    [iarr](int a){return (int)(a*iarr+0.5f);});
+        }
+
+        for(int j=w-r; j<w; j++, ti++, li++) 
+        {
+            std::transform(val, val+c, lv, val,         [](int a, int b){return a+b;});
+            std::transform(val, val+c, in+li*c, val,    [](int a, uchar u){return a-u;});
+            std::transform(val, val+c, out+ti*c,    [iarr](int a){return (int)(a*iarr+0.5f);});
         }
     }
 }
@@ -375,9 +418,82 @@ void transpose(uchar * in, uchar * out, int w, int h, int c)
     #pragma omp parallel for
     for(std::size_t i = 0; i < b+1; i++)
     {
-        std::size_t o = i == b ? b : h * i % b; // transpose index
+        std::size_t o = i == b ? b : h * i % b;
         for(int ch = 0; ch < c; ch++)
             out[o*c+ch] = in[i*c+ch];
+    }
+}
+
+void transpose_memcpy(uchar * in, uchar * out, int w, int h, int c)
+{
+    const std::size_t b = w * h - 1;
+    #pragma omp parallel for
+    for(std::size_t i = 0; i < b+1; i++)
+    {
+        std::size_t o = i == b ? b : h * i % b;
+        std::copy(in+i*c, in+i*c+c, out+o*c);
+    }
+}
+
+void flip( uchar * in, uchar * out, int w, int h, int c)
+{
+    #pragma omp parallel for
+    for(int y = 0; y < h; y++)
+    {
+        uchar *p = in + y*w*c;
+        uchar *q = out + y*c;
+        for(int x = 0; x < w; x++)
+        {
+            for(int k = 0; k < c; k++)
+                q[k]= p[k];
+            p+= c;
+            q+= h*c;
+        }
+    }
+}
+
+void flip_memcpy( uchar * in, uchar * out, int w, int h, int c)
+{
+    #pragma omp parallel for
+    for(int y = 0; y < h; y++)
+    {
+        uchar *p = in + y*w*c;
+        uchar *q = out + y*c;
+        for(int x = 0; x < w; x++)
+        {
+            // std::memcpy(q, p, c * sizeof(uchar));
+            std::copy(p, p+c, q);
+            p+= c;
+            q+= h*c;
+        }
+    }
+}
+
+void flip_bloc( uchar * in, uchar * out, int w, int h, int c = 1 )
+{
+    constexpr int block = 32;
+    #pragma omp parallel for collapse(2)
+    for(int y= 0; y < h; y+= block)
+    {
+        for(int x= 0; x < w; x+= block)
+        {
+            uchar *p= (uchar *) in + y*w*c + x*c;
+            uchar *q= (uchar *) out + x*h*c + y*c;
+            for(int yy= 0; yy < block; yy++)
+            {
+                for(int xx= 0; xx < block; xx++)
+                {
+                    std::copy(p, p+c, q);
+                    // for(int k = 0; k < c; k++)
+                        // q[k]= p[k];
+                    p+= w*c;
+                    q+= c;
+                }
+                // repositionne les pointeurs sur le prochain pixel
+                p+= -block*w*c + c;
+                q+= -block*c + h*c;
+            }
+        }
     }
 }
 
@@ -392,13 +508,35 @@ void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c
     horizontal_blur(out, in, w, h, c, boxes[1]);
     horizontal_blur(in, out, w, h, c, boxes[2]);
 
-    transpose(out, in, w, h, c);
+    flip_memcpy(out, in, w, h, c);
 
     horizontal_blur(in, out, h, w, c, boxes[0]);
     horizontal_blur(out, in, h, w, c, boxes[1]);
     horizontal_blur(in, out, h, w, c, boxes[2]);
 
-    transpose(out, in, h, w, c);
+    flip_memcpy(out, in, h, w, c);
+    // swap pointers    
+    std::swap(in, out);
+}
+
+void fast_gaussian_blur_flip(uchar *& in, uchar *& out, int w, int h, int c, float sigma) 
+{
+    // sigma conversion to box dimensions for 3 passes
+    int n = 3;
+    int boxes[3];
+    sigma_to_box_radius(boxes, sigma, n);
+
+    horizontal_blur(in, out, w, h, c, boxes[0]);
+    horizontal_blur(out, in, w, h, c, boxes[1]);
+    horizontal_blur(in, out, w, h, c, boxes[2]);
+
+    flip_bloc(out, in, w, h, c);
+
+    horizontal_blur(in, out, h, w, c, boxes[0]);
+    horizontal_blur(out, in, h, w, c, boxes[1]);
+    horizontal_blur(in, out, h, w, c, boxes[2]);
+
+    flip_bloc(out, in, h, w, c);
     // swap pointers    
     std::swap(in, out);
 }
@@ -412,7 +550,7 @@ void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c
 //! \param[in,out] in       source channel
 //! \param[in,out] out      target channel
 //! \param[in] w            image width
-//! \param[in] h            image height
+//! \param[in] h            h
 //! \param[in] c            image channels
 //! \param[in] kernel       kernel weights array (square)
 //! \param[in] k            kernel radius (kernel size is 2*k+1)
