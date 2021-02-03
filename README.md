@@ -39,7 +39,7 @@ The fast Gaussian blur approx is linear in time regarding the size of the input 
 
 ## Performance
 
-![](data/time.png)
+![](data/time.pdf)
 
 The above graph shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X. The dashed blue line highlights the fact that column major traversal of large image buffer may result in cache incohenrency. Hence we can perform image buffer transpositions and only cache coherent row major traversals to mitigate the problem. However the transposition step is not a cache friendly operation thus on large image buffer we observe the blue slope slowly increasing w.r.t image size.    
 
