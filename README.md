@@ -11,7 +11,8 @@ There are several implementations, from slowest to fastest:
 - integer buffer all channels blur in `blur_int_rgb.cpp`
 - floating point buffer all channels blur in `blur_float_rgb.cpp`
 - unsigned char buffer all channels blur in `blur_uchar_rgb.cpp`
-- unsigned char buffer all channels blur in `blur_uchar_rgb_no_round.cpp`. This version throws every `std::round` call in separable blur passes. Note that the result is slightly darker than it should be. But this version is the fastest I came up with.
+- unsigned char buffer all channels blur in `blur_uchar_rgb_no_round.cpp`. This version throws every `std::round` call in separable blur passes. Note that the result is slightly darker than it should be. But this version is the fastest I came up with. 
+
 
 Integer versions are slower due to additional float -> int and int -> float casts and `std::round` calls. The fastest version blurs 160k pixels in ~3ms, and 1000k pixels in ~70ms on a single core of a Ryzen 7 2700X CPU without OpenMP. The fastest version blurs 160k pixels in ~1ms, and 1000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster.
 
@@ -46,3 +47,8 @@ The above graph shows the average exectution time of blur algorithm w.r.t pixel 
 ## Licence
 
 You may use, distribute and modify this code under the terms of the MIT license. For further details please refer to : https://mit-license.org/
+
+## TODO
+
+- [ ] change std::round by adding 0.5f + cast
+- [ ] to read [recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
