@@ -25,7 +25,7 @@ Run the program with the following command:
 
 `./program <input_image_filename> <sigma> <output_image_filename>`
 
-- program can be any of `blur_float_rgb`, `blur_float`, `blur_int_rgb`, `blur_int`, `blur_uchar_rgb`, `blur_uchar_rgb_no_round`.
+- program can be any of `blur_float_rgb`, `blur_float`, `blur_int_rgb`, `blur_int`, `blur_uchar_rgb`.
 - input_image_filename should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].
 - sigma is the desired Gaussian blur standard deviation (should be positive).
 - output_image_filename should be any of [.png, .jpg, .bmp]  (unknown extensions will be saved as .png by default).
