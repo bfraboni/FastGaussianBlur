@@ -50,4 +50,3 @@ You may use, distribute and modify this code under the terms of the MIT license.
 ## TODO
 
 - [ ] to read [recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
-- [ ] extend flip bloc for not power of 2 image sizes
