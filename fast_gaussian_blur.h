@@ -469,7 +469,7 @@ void flip_memcpy( uchar * in, uchar * out, int w, int h, int c)
     }
 }
 
-void flip_bloc( uchar * in, uchar * out, int w, int h, int c = 1 )
+void flip_bloc_square( uchar * in, uchar * out, int w, int h, int c = 1 )
 {
     constexpr int block = 32;
     #pragma omp parallel for collapse(2)
@@ -497,6 +497,38 @@ void flip_bloc( uchar * in, uchar * out, int w, int h, int c = 1 )
     }
 }
 
+void flip_bloc( uchar * in, uchar * out, int w, int h, int c = 1 )
+{
+    constexpr int block = 32;
+    #pragma omp parallel for collapse(2)
+    for(int y= 0; y < h; y+= block)
+    {
+        for(int x= 0; x < w; x+= block)
+        {
+            uchar *p= (uchar *) in + y*w*c + x*c;
+            uchar *q= (uchar *) out + x*h*c + y*c;
+
+            const int blockx= std::min(w, x+block) - x;
+            const int blocky= std::min(h, y+block) - y;
+            
+            for(int yy= 0; yy < blocky; yy++)
+            {
+                for(int xx= 0; xx < blockx; xx++)
+                {
+                    // std::copy(p, p+c, q);
+                    for(int k = 0; k < c; k++)
+                        q[k]= p[k];
+                    p+= w*c;
+                    q+= c;
+                }
+                // repositionne les pointeurs sur le prochain pixel
+                p+= -blocky*w*c + c;
+                q+= -blocky*c + h*c;
+            }
+        }
+    }
+}
+
 void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c, float sigma) 
 {
     // sigma conversion to box dimensions for 3 passes
@@ -508,13 +540,13 @@ void fast_gaussian_blur_transpose(uchar *& in, uchar *& out, int w, int h, int c
     horizontal_blur(out, in, w, h, c, boxes[1]);
     horizontal_blur(in, out, w, h, c, boxes[2]);
 
-    flip_memcpy(out, in, w, h, c);
+    transpose_memcpy(out, in, w, h, c);
 
     horizontal_blur(in, out, h, w, c, boxes[0]);
     horizontal_blur(out, in, h, w, c, boxes[1]);
     horizontal_blur(in, out, h, w, c, boxes[2]);
 
-    flip_memcpy(out, in, h, w, c);
+    transpose_memcpy(out, in, h, w, c);
     // swap pointers    
     std::swap(in, out);
 }
