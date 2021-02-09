@@ -497,28 +497,33 @@ void flip_bloc_square( uchar * in, uchar * out, int w, int h, int c = 1 )
     }
 }
 
-void flip_bloc( uchar * in, uchar * out, int w, int h, int c = 1 )
+void flip_bloc( uchar * in, uchar * out, const int w, const int h, const int c = 1 )
 {
-    constexpr int block = 128;
-    uchar * p, * q;
+    constexpr int block = 256;
     #pragma omp parallel for collapse(2)
-    for(int y= 0; y < h; y+= block)
+    for(int x= 0; x < w; x+= block)
     {
-        for(int x= 0; x < w; x+= block)
+        for(int y= 0; y < h; y+= block)
         {
+            uchar * p = in + y*w*c + x*c;
+            uchar * q = out + y*c + x*h*c;
+            
             const int blockx= std::min(w, x+block) - x;
             const int blocky= std::min(h, y+block) - y;
-            for(int yy= 0; yy < blocky; yy++)
+            for(int xx= 0; xx < blockx; xx++)
             {
-                p= in + ((y+yy)*w)*c + x*c;
-                q= out + (x*h)*c + (y+yy)*c;
-                for(int xx= 0; xx < blockx; xx++)
+                for(int yy= 0; yy < blocky; yy++)
                 {
-                    for(int k = 0; k < c; k++)
+                    #pragma GCC unroll 4
+                    for(int k= 0; k < c; k++)
                         q[k]= p[k];
-                    p+= c;
-                    q+= c*h;
+                    //~ std::memcpy(q, p, c);
+                    p+= w*c;
+                    q+= c;                    
                 }
+                // repositionne les pointeurs sur le prochain pixel
+                p+= -blocky*w*c + c;
+                q+= -blocky*c + h*c;
             }
         }
     }
