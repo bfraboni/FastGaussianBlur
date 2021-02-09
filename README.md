@@ -49,5 +49,6 @@ You may use, distribute and modify this code under the terms of the MIT license.
 
 ## TODO
 
-- [ ] to read [recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
+- [ ] to read [Recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
 - [ ] to read [Fast O(1) bilateral filtering using trigonometric range kernels](http://bigwww.epfl.ch/chaudhury/Fast%20bilateral%20filtering.pdf)
+- [ ] to read [A Survey of Gaussian Convolution Algorithms](http://www.ipol.im/pub/art/2013/87/)
