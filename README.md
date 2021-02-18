@@ -11,9 +11,9 @@ There are several implementations, from slowest to fastest:
 - integer buffer all channels blur in `blur_int_rgb.cpp`
 - floating point buffer all channels blur in `blur_float_rgb.cpp`
 - unsigned char buffer all channels blur in `blur_uchar_rgb.cpp`
-- `fast_gaussian_blur.h` is a WIP header that regroup the implementations, ands the last cache coherent version that has not its own example file for now.
+- `fast_gaussian_blur.h` is a WIP header that regroup the implementations, ands the latest templated cache coherent version that has not its own example file for now.
 
-Integer versions are slower due to additional float -> int and int -> float casts. The fastest version blurs 2000k pixels in ~15ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes).
+Integer versions are slower due to additional float -> int and int -> float casts. The fastest version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes).
 
 ## Compilation
 
