@@ -52,10 +52,12 @@ Special thanks to Jean-Claude Iehl (@jciehl) for our insightful discussions and 
 
 You may use, distribute and modify this code under the terms of the MIT license. For further details please refer to : https://mit-license.org/
 
-## TODO
+## References
 
-- [ ] to read [Recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
-- [ ] to read [Fast O(1) bilateral filtering using trigonometric range kernels](http://bigwww.epfl.ch/chaudhury/Fast%20bilateral%20filtering.pdf)
-- [ ] to read [A Survey of Gaussian Convolution Algorithms](http://www.ipol.im/pub/art/2013/87/)
-- [ ] to read [Filtering by repeated integration](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.72.4795)
-- [ ] to read [Fast Filter Spreading and its Applications](https://www2.eecs.berkeley.edu/Pubs/TechRpts/2009/EECS-2009-54.pdf)
+- [Recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)
+- [Fast O(1) bilateral filtering using trigonometric range kernels](http://bigwww.epfl.ch/chaudhury/Fast%20bilateral%20filtering.pdf)
+- [A Survey of Gaussian Convolution Algorithms](http://www.ipol.im/pub/art/2013/87/)
+- [Filtering by repeated integration](http://citeseerx.ist.psu.edu/viewdoc/summary?doi=10.1.1.72.4795)
+- [Fast Filter Spreading and its Applications](https://www2.eecs.berkeley.edu/Pubs/TechRpts/2009/EECS-2009-54.pdf)
+- [Fast Almost-Gaussian Filtering](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf)
+- [Fast image convolutions](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf)
