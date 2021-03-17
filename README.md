@@ -2,6 +2,8 @@
 
 C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
 
+**Note**: the fast gaussian blur algorithm is not accurate on image boundaries. It performs a diffusion of the signal with several independant passes, each pass depending of the preceding one. Some of the diffused signal is lost near borders and results in a slight loss of accuracy for next pass. This problem can be solved by increasing the image support of half the box kernel extent at each pass of the algorithm. The added padding would in this case capture the diffusion and make the next pass accurate. On contrary true Gaussian blur does not suffer this problem since it is performed in one pass only.
+
 ## Details
 
 There are several implementations, from slowest to fastest:
