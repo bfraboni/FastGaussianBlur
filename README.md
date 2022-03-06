@@ -32,6 +32,12 @@ For further details please refer to:
 ## Details
 
 The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
+The main exposed function is defined as:
+```c++
+template<typename T>
+void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n);
+```
+where `in` is the source buffer reference ptr, `out` is the target buffer reference ptr, `w` is the image width, `h` is the image height, `c` is the image number of channels, and `sigma` is the desiredGaussian standard deviation.
 
 This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
 Hence it may be used for real-time applications with reasonable image resolutions. 
