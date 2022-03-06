@@ -26,9 +26,8 @@ The extra padding is not performed in this implementation, however we provide an
 policies resulting in dfferent approximations and accuracies.  
 
 For further details please refer to:
-    - http://blog.ivank.net/fastest-gaussian-blur.html
-    - https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
-    - https://github.com/bfraboni/FastGaussianBlur
+- http://blog.ivank.net/fastest-gaussian-blur.html
+- https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
 
 ## Details
 
@@ -42,7 +41,7 @@ If one manage to improve this version I would be pleased to discuss how :)
 
 ## Compilation
 
-In a Unix or WSL term you can use the provided makefile; use `make` to build the target `fastblur` example without dependencies.
+In a Unix or WSL term you can use the provided makefile; use `make` to build the target `fastblur` example (main.cpp) without dependencies.
 
 ## Usage
 
@@ -64,9 +63,9 @@ The fast Gaussian blur is linear in time regarding the size of the input image, 
 
 ## Performance
 
-![](data/time.png)
+The graph below shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X. The dashed blue line highlights the fact that column major traversal of large image buffer may result in cache incohenrency. Hence we can perform image buffer transpositions and only cache coherent row major traversals to mitigate the problem. However the transposition step is not a cache friendly operation thus on large image buffer we observe the slope w/ transpose slowly increasing w.r.t image size. Performing the image transposition with fixed squared blocks per thread helps preserving the cache coherency and results in the fastest version of the algortihm (flip bloc). 
 
-The above graph shows the average exectution time of blur algorithm w.r.t pixel number on Ryzen 7 2700X. The dashed blue line highlights the fact that column major traversal of large image buffer may result in cache incohenrency. Hence we can perform image buffer transpositions and only cache coherent row major traversals to mitigate the problem. However the transposition step is not a cache friendly operation thus on large image buffer we observe the slope w/ transpose slowly increasing w.r.t image size. Performing the image transposition with fixed squared blocks per thread helps preserving the cache coherency and results in the fastest version of the algortihm (flip bloc).   
+![](data/time.png)  
 
 ## Acknowledgments
 
