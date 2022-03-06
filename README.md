@@ -42,6 +42,7 @@ where `in` is the source buffer reference ptr, `out` is the target buffer refere
 This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
 Hence it may be used for real-time applications with reasonable image resolutions. 
 A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes). 
+
 Note that I have tried to beat the template version with an ISPC compiled version, but still can not match the performance. 
 If one manage to improve this version I would be pleased to discuss how :)
 
