@@ -37,7 +37,7 @@ The main exposed function is defined as:
 template<typename T>
 void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n);
 ```
-where `in` is the source buffer reference ptr, `out` is the target buffer reference ptr, `w` is the image width, `h` is the image height, `c` is the image number of channels, and `sigma` is the desiredGaussian standard deviation.
+where `in` is the source buffer reference ptr, `out` is the target buffer reference ptr, `w` is the image width, `h` is the image height, `c` is the image number of channels, and `sigma` is the desiredGaussian standard deviation. Note that the input buffer is also used as temporary and modified during the process hence it can not be constant.
 
 This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
 Hence it may be used for real-time applications with reasonable image resolutions. 
