@@ -2,7 +2,7 @@
 
 C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
 
-## Details
+## Algorithm
 
 The fast Gaussian blur algorithm in linear time is performed with several box blur passes over an image.
 Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit. 
@@ -29,7 +29,7 @@ For further details please refer to:
 - http://blog.ivank.net/fastest-gaussian-blur.html
 - https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
 
-## Details
+## Implementation
 
 The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
 The main exposed function is defined as:
