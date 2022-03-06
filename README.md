@@ -2,40 +2,62 @@
 
 C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
 
-**Note**: the fast gaussian blur algorithm is not accurate on image boundaries. It performs a diffusion of the signal with several independant passes, each pass depending of the preceding one. Some of the diffused signal is lost near borders and results in a slight loss of accuracy for next pass. This problem can be solved by increasing the image support of half the box kernel extent at each pass of the algorithm. The added padding would in this case capture the diffusion and make the next pass accurate. On contrary true Gaussian blur does not suffer this problem since the whole diffusion process is performed in one pass only.
+## Details
+
+The fast Gaussian blur algorithm in linear time is performed with several box blur passes over an image.
+Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit. 
+Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes. 
+Usually the process of N passes should alternate between horizontal and vertical passes as much times as we want box blur passes. However thanks to box blur properties the separable horizontal and vertical passes can be performed in any order without changing the result.
+Hence for performance purposes the algorithm is: 
+1. apply N times horizontal blur (horizontal passes)
+2. flip the image buffer (transposition)
+3. apply N times horizontal blur (vertical passes)
+4. flip the image buffer (transposition)
+
+**Note:** The fast gaussian blur algorithm is not accurate on image boundaries. 
+It performs a diffusion of the signal with several independant passes, each pass depending 
+of the preceding one. Some of the diffused signal is lost near borders and results in a slight 
+loss of accuracy for next pass. This problem can be solved by increasing the image support of 
+half the box kernel extent at each pass of the algorithm. The added padding would in this case 
+capture the diffusion and make the next pass accurate. 
+On contrary true Gaussian blur does not suffer this problem since the whole diffusion process 
+is performed in one pass only.
+The extra padding is not performed in this implementation, however we provide and discuss several border
+policies resulting in dfferent approximations and accuracies.  
+
+For further details please refer to:
+    - http://blog.ivank.net/fastest-gaussian-blur.html
+    - https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
+    - https://github.com/bfraboni/FastGaussianBlur
 
 ## Details
 
-There are several implementations, from slowest to fastest:
+The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
 
-- integer buffer per channel blur in `blur_int.cpp`
-- floating point buffer per channel blur in `blur_float.cpp`
-- integer buffer all channels blur in `blur_int_rgb.cpp`
-- floating point buffer all channels blur in `blur_float_rgb.cpp`
-- unsigned char buffer all channels blur in `blur_uchar_rgb.cpp`
-- `fast_gaussian_blur.h` is a WIP header that regroup the implementations, and a cache coherent version that has not its own example file for now.
-- `fast_gaussian_blur_template.h` is a WIP header that contains the latest templated cache coherent version that has not its own example file for now.
-
-Integer versions are slower due to additional float -> int and int -> float casts. The fastest version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. Hence it may be used for real-time applications with reasonable image resolutions. A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes).
+This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
+Hence it may be used for real-time applications with reasonable image resolutions. 
+A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes). 
+Note that I have tried to beat the template version with an ISPC compiled version, but still can not match the performance. 
+If one manage to improve this version I would be pleased to discuss how :)
 
 ## Compilation
 
-In a Unix term or WSL term you can use the provided makefile; use `make all` to build all targets without dependencies.
+In a Unix or WSL term you can use the provided makefile; use `make` to build the target `fastblur` example without dependencies.
 
 ## Usage
 
 Run the program with the following command:
 
-`./program <input_image_filename> <sigma> <output_image_filename>`
+`./fastblur <input_filename> <output_filename> <sigma> <passes = 3>`
 
-- program can be any of `blur_float_rgb`, `blur_float`, `blur_int_rgb`, `blur_int`, `blur_uchar_rgb`.
 - input_image_filename should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].
-- sigma is the desired Gaussian blur standard deviation (should be positive).
 - output_image_filename should be any of [.png, .jpg, .bmp]  (unknown extensions will be saved as .png by default).
+- sigma is the desired Gaussian blur standard deviation (should be positive).
+- passes is an optional argument that controls the number of box blur passes (should be positive). Default is 3 and current implementation supports up to 10 passes, but one can easily add more in the code.
 
 ## Results
 
-The fast Gaussian blur approx is linear in time regarding the size of the input image, but independent of sigma hence sigma = 5 is equally fast as sigma = 50.
+The fast Gaussian blur is linear in time regarding the size of the input image, but independent of sigma hence sigma = 5 is equally fast as sigma = 50.
 |Original|sigma = 2|sigma = 5|sigma = 10|sigma = 30|sigma = 50|
 |:---:|:---:|:---:|:---:|:---:|:---:|
 ![](data/demo.png)|![](data/blur2.png)|![](data/blur5.png)|![](data/blur10.png)|![](data/blur30.png)|![](data/blur50.png)|
