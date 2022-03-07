@@ -14,7 +14,7 @@ Hence for performance purposes the algorithm is:
 2. flip the image buffer (transposition)
 3. apply N times horizontal box blur (vertical passes)
 4. flip the image buffer (transposition)
-5. 
+
 Steps 1. and 3. are performed with the `horizontal_blur` function, which is a fast separable box blur pass with a sliding accumulator.
 Steps 2. and 4. are performed with the `flip_block` function, which is a fast image buffer transposition per block that better preserves cache coherency.
 
