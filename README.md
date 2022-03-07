@@ -1,18 +1,21 @@
 # Fast Gaussian Blur
 
-C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
+Header only C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
 
 ## Algorithm
 
 The fast Gaussian blur algorithm in linear time is performed with several box blur passes over an image.
 Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit. 
 Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes. 
-Usually the process of N passes should alternate between horizontal and vertical passes as much times as we want box blur passes. However thanks to box blur properties the separable horizontal and vertical passes can be performed in any order without changing the result.
+Usually the process of N passes should alternate between horizontal and vertical passes as much times as we want box blur passes. 
+However thanks to box blur properties the separable horizontal and vertical passes can be performed in any order without changing the result.
 Hence for performance purposes the algorithm is: 
-1. apply N times horizontal blur (horizontal passes)
+1. apply N times horizontal box blur (horizontal passes)
 2. flip the image buffer (transposition)
-3. apply N times horizontal blur (vertical passes)
+3. apply N times horizontal box blur (vertical passes)
 4. flip the image buffer (transposition)
+Steps 1. and 3. are performed with the `horizontal_blur` function, which is a fast separable box blur pass with a sliding accumulator.
+Steps 2. and 4. are performed with the `flip_block` function, which is a fast image buffer transposition per block that better preserves cache coherency.
 
 **Note:** The fast gaussian blur algorithm is not accurate on image boundaries. 
 It performs a diffusion of the signal with several independant passes, each pass depending 
@@ -22,7 +25,7 @@ half the box kernel extent at each pass of the algorithm. The added padding woul
 capture the diffusion and make the next pass accurate. 
 On contrary true Gaussian blur does not suffer this problem since the whole diffusion process 
 is performed in one pass only.
-The extra padding is not performed in this implementation, however we provide and discuss several border
+The extra padding is not performed in this implementation, however we provide several border
 policies resulting in dfferent approximations and accuracies.  
 
 For further details please refer to:
@@ -37,7 +40,16 @@ The main exposed function is defined as:
 template<typename T>
 void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n);
 ```
-where `in` is the source buffer reference ptr, `out` is the target buffer reference ptr, `w` is the image width, `h` is the image height, `c` is the image number of channels, `sigma` is the desiredGaussian standard deviation, and `n` is the number of box blur passes to perform. Note that the input buffer is also used as temporary and modified during the process hence it can not be constant.
+where the arguments are:
+- `in` is a reference to the source buffer ptr, 
+- `out` is a reference to the target buffer ptr, 
+- `w` is the image width, 
+- `h` is the image height, 
+- `c` is the image number of channels, 
+- `sigma` is the desired Gaussian standard deviation, 
+- `n` is the number of box blur passes to perform. 
+
+Note that the buffer values (input and output) and their pointers are modified during the process hence they can not be constant.
 
 This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
 Hence it may be used for real-time applications with reasonable image resolutions. 
