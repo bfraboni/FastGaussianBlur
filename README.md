@@ -18,7 +18,7 @@ Hence for performance purposes the algorithm is:
 Steps 1. and 3. are performed with the `horizontal_blur` function, which is a fast separable box blur pass with a sliding accumulator.
 Steps 2. and 4. are performed with the `flip_block` function, which is a fast image buffer transposition per block that better preserves cache coherency.
 
-**Note:** The fast gaussian blur algorithm is not accurate on image boundaries. 
+**Note 1:** The fast gaussian blur algorithm is not accurate on image boundaries. 
 It performs a diffusion of the signal with several independant passes, each pass depending 
 of the preceding one. Some of the diffused signal is lost near borders and results in a slight 
 loss of accuracy for next pass. This problem can be solved by increasing the image support of 
@@ -27,7 +27,13 @@ capture the diffusion and make the next pass accurate.
 On contrary true Gaussian blur does not suffer this problem since the whole diffusion process 
 is performed in one pass only.
 The extra padding is not performed in this implementation, however we provide several border
-policies resulting in dfferent approximations and accuracies.  
+policies resulting in dfferent approximations and accuracies. 
+
+**Note 2:** The fast gaussian blur algorithm does not reproduce accurately a true desired Gaussian standard deviation (sigma).
+The approximate sigma oscillate around the true sigma and the error will be less noticeable as sigma increases.
+In fact, this method is designed to resolve medium or high values of sigma super fast, and are not well suited for small sigmas (<=2), since a simple separable Gaussian blur implementation could be equally fast and of better quality.
+
+![](data/sigma.png)  
 
 For further details please refer to:
 - http://blog.ivank.net/fastest-gaussian-blur.html
