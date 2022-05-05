@@ -205,6 +205,7 @@ void flip_block(const T * in, T * out, const int w, const int h, const int c)
 //!
 //! \brief This function converts the standard deviation of 
 //! Gaussian blur into a box radius for each box blur pass. 
+//! Returns the approximate sigma value achieved with the N box blur passes.
 //!
 //! For further details please refer to :
 //! - https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
@@ -213,7 +214,7 @@ void flip_block(const T * in, T * out, const int w, const int h, const int c)
 //! \param[in] sigma    Gaussian standard deviation
 //! \param[in] n        number of box blur pass
 //!
-void sigma_to_box_radius(int boxes[], const float sigma, const int n)  
+float sigma_to_box_radius(int boxes[], const float sigma, const int n)  
 {
     // ideal filter width
     float wi = std::sqrt((12*sigma*sigma/n)+1); 
@@ -226,6 +227,8 @@ void sigma_to_box_radius(int boxes[], const float sigma, const int n)
                 
     for(int i=0; i<n; i++) 
         boxes[i] = ((i < m ? wl : wu) - 1) / 2;
+
+    return std::sqrt((m*wl*wl+(n-m)*wu*wu-n)/12.f);
 }
 
 //!
