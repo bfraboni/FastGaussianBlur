@@ -6,17 +6,18 @@ Header only C++ implementation of a fast gaussian blur approximation in linear t
 
 The fast Gaussian blur algorithm in linear time is performed with several box blur passes over an image.
 Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit. 
-Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes. 
-Usually the process of N passes should alternate between horizontal and vertical passes as much times as we want box blur passes. 
-However thanks to box blur properties the separable horizontal and vertical passes can be performed in any order without changing the result.
-Hence for performance purposes the algorithm is: 
+Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes.
+
+A 2D box blur is a separable convolution, hence it is most of the time performed using first an horizontal 1D box blur pass and then a vertical 1D box blur pass. Usually the process of N box blur passes should alternate between these horizontal and vertical passes. 
+However thanks to box blur properties the horizontal and vertical passes can be performed in any order without changing the result.
+Hence for performance purposes I came up with the following algorithm: 
 1. apply N times horizontal box blur (horizontal passes)
 2. flip the image buffer (transposition)
 3. apply N times horizontal box blur (vertical passes)
 4. flip the image buffer (transposition)
 
-Steps 1. and 3. are performed with the `horizontal_blur` function, which is a fast separable box blur pass with a sliding accumulator.
-Steps 2. and 4. are performed with the `flip_block` function, which is a fast image buffer transposition per block that better preserves cache coherency.
+Steps 1. and 3. are performed with the `horizontal_blur` function, which is a fast 1D box blur pass with a sliding accumulator.
+Steps 2. and 4. are performed with the `flip_block` function, which is a fast image buffer transposition, processed per block such that it better preserves cache coherency.
 
 **Note 1:** The fast gaussian blur algorithm is not accurate on image boundaries. 
 It performs a diffusion of the signal with several independant passes, each pass depending 
