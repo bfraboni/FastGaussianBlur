@@ -5,8 +5,10 @@ Header only C++ implementation of a fast gaussian blur approximation in linear t
 ## Algorithm
 
 The fast Gaussian blur algorithm in linear time is performed with several box blur passes over an image.
-Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit. 
-Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes.
+Applying several times box blur converges towards a true Gaussian blur thanks to the theorem central limit (cf. next image). 
+Three passes are sufficient for good quality results but the exposed implementation supports arbitrary number of box blur passes.  
+
+![](data/box.jpg)
 
 A 2D box blur is a separable convolution, hence it is most of the time performed using first an horizontal 1D box blur pass and then a vertical 1D box blur pass. Usually the process of N box blur passes should alternate between these horizontal and vertical passes. 
 However thanks to box blur properties the horizontal and vertical passes can be performed in any order without changing the result.
