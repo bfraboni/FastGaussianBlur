@@ -45,14 +45,112 @@
 //! For a detailed description of border policies please refer to:
 //! https://en.wikipedia.org/wiki/Kernel_(image_processing)#Edge_Handling
 //!
-//! \todo Add support for other border policies (wrap, mirror, constant)
-enum BorderPolicy {
+//! \todo Add support for other border policies (wrap, mirror)
+enum BorderPolicy 
+{
     kExtend, 
     kKernelCrop, 
     // kWrap, 
     // kMirror, 
-    // kConstant
 };
+
+//!
+//! \brief This function performs a single separable horizontal box blur pass with border extend policy.
+//!
+//! To complete a box blur pass we need to do this operation two times, one horizontally
+//! and one vertically. Templated by buffer data type T, buffer number of channels C.
+//!
+//! \param[in] in           source buffer
+//! \param[in,out] out      target buffer
+//! \param[in] w            image width
+//! \param[in] h            image height
+//! \param[in] r            box dimension
+//!
+template<typename T, int C>
+void horizontal_blur_extend(const T * in, T * out, const int w, const int h, const int r)
+{
+    float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        int ti = i*w, li = ti-r-1, ri = ti+r;   // current index, left index, right index
+        float fv[C], lv[C], acc[C];             // first value, last value, sliding accumulator
+
+        for(int ch = 0; ch < C; ++ch)
+        {
+            fv[ch] =  in[ti*C+ch];
+            lv[ch] =  in[(ti+w-1)*C+ch];
+            acc[ch] = (r+1)*fv[ch]; 
+        }
+
+        // initial acucmulation
+        for(int j=0; j<r; j++) 
+        for(int ch = 0; ch < C; ++ch)
+        {
+            acc[ch] += ti+j < ti+w ? in[(ti+j)*C+ch] : lv[ch]; 
+        }
+
+        // perform filtering
+        for(int j=0; j<w; j++, ri++, ti++, li++) 
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : lv[ch];
+            acc[ch] -= li >= i*w ?      in[li*C+ch] : fv[ch];
+            out[ti*C+ch] = acc[ch]*iarr;
+        }
+    }
+}
+
+//!
+//! \brief This function performs a single separable horizontal box blur pass with kernel crop border policy.
+//!
+//! To complete a box blur pass we need to do this operation two times, one horizontally
+//! and one vertically. Templated by buffer data type T, buffer number of channels C.
+//!
+//! \param[in] in           source buffer
+//! \param[in,out] out      target buffer
+//! \param[in] w            image width
+//! \param[in] h            image height
+//! \param[in] r            box dimension
+//!
+template<typename T, int C>
+void horizontal_blur_kernel_crop(const T * in, T * out, const int w, const int h, const int r)
+{
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        int ti = i*w, li = ti-r-1, ri = ti+r;   // current index, left index, right index
+        float acc[C];                           // sliding accumulator
+
+        for(int ch = 0; ch < C; ++ch)
+        {
+            acc[ch] = 0; 
+        }
+
+        // initial acucmulation
+        for(int j=0; j<r; j++) 
+        for(int ch = 0; ch < C; ++ch)
+        {
+            acc[ch] += ti+j < ti+w ? in[(ti+j)*C+ch] : 0; 
+        }
+
+        // perform filtering
+        for(int j=0; j<w; j++, ri++, ti++, li++) 
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : 0;
+            acc[ch] -= li >= i*w ?      in[li*C+ch] : 0;
+            int start = std::max(i*w-1, li);
+            int end = std::min((i+1)*w-1, ri);
+            out[ti*C+ch] = acc[ch]/float(end-start);    // renormalize kernel
+        }
+    }
+}
+
+//! template<typename T, int C> 
+//! void horizontal_blur_mirror(const T * in, T * out, const int w, const int h, const int r);
+//! template<typename T, int C> 
+//! void horizontal_blur_wrap(const T * in, T * out, const int w, const int h, const int r);
 
 //!
 //! \brief This function performs a single separable horizontal box blur pass.
@@ -66,53 +164,16 @@ enum BorderPolicy {
 //! \param[in] h            image height
 //! \param[in] r            box dimension
 //!
-template<typename T, int C, BorderPolicy P = kKernelCrop>
+template<typename T, int C, BorderPolicy P = kExtend>
 void horizontal_blur(const T * in, T * out, const int w, const int h, const int r)
 {
-    float iarr = 1.f / (r+r+1);
-    #pragma omp parallel for
-    for(int i=0; i<h; i++) 
+    if constexpr(P == kExtend)
     {
-        int ti = i*w, li = ti, ri = ti+r;
-        float fv[C], lv[C], val[C];
-
-        for(int ch = 0; ch < C; ++ch)
-        {
-            fv[ch] =  P == kExtend ? in[ti*C+ch]        : 0; // unused with kcrop policy
-            lv[ch] =  P == kExtend ? in[(ti+w-1)*C+ch]  : 0; // unused with kcrop policy
-            val[ch] = P == kExtend ? (r+1)*fv[ch]       : 0; 
-        }
-
-        // initial acucmulation
-        for(int j=0; j<r; j++) 
-        for(int ch = 0; ch < C; ++ch)
-        {
-            val[ch] += in[(ti+j)*C+ch]; 
-        }
-
-        // left border - filter kernel is incomplete
-        for(int j=0; j<=r; j++, ri++, ti++) 
-        for(int ch = 0; ch < C; ++ch)
-        { 
-            val[ch] +=     P == kExtend ? in[ri*C+ch] - fv[ch] : in[ri*C+ch]; 
-            out[ti*C+ch] = P == kExtend ? val[ch]*iarr         : val[ch]/(r+j+1); 
-        }
-
-        // center of the image - filter kernel is complete
-        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
-        for(int ch = 0; ch < C; ++ch)
-        { 
-            val[ch] += in[ri*C+ch] - in[li*C+ch]; 
-            out[ti*C+ch] = val[ch]*iarr;
-        }
-
-        // right border - filter kernel is incomplete
-        for(int j=w-r; j<w; j++, ti++, li++) 
-        for(int ch = 0; ch < C; ++ch)
-        { 
-            val[ch] +=     P == kExtend ? lv[ch] - in[li*C+ch] : -in[li*C+ch]; 
-            out[ti*C+ch] = P == kExtend ? val[ch]*iarr         : val[ch]/(r+w-j); 
-        }
+        horizontal_blur_extend<T,C>(in, out, w, h, r);
+    }
+    else
+    {
+        horizontal_blur_kernel_crop<T,C>(in, out, w, h, r);
     }
 }
 
