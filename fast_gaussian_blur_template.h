@@ -96,7 +96,7 @@ void horizontal_blur_extend(const T * in, T * out, const int w, const int h, con
         { 
             acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : lv[ch];
             acc[ch] -= li >= i*w ?      in[li*C+ch] : fv[ch];
-            out[ti*C+ch] = std::is_integral_v<T> ? acc[ch]*iarr+0.5f : acc[ch]*iarr; // fixes darkening with integer types 
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
         }
     }
 }
@@ -142,7 +142,8 @@ void horizontal_blur_kernel_crop(const T * in, T * out, const int w, const int h
             acc[ch] -= li >= i*w ?      in[li*C+ch] : 0;
             int start = std::max(i*w-1, li);
             int end = std::min((i+1)*w-1, ri);
-            out[ti*C+ch] = acc[ch]/float(end-start);    // renormalize kernel
+            // renormalize kernel
+            out[ti*C+ch] = acc[ch]/float(end-start) + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types;
         }
     }
 }
