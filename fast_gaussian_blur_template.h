@@ -96,7 +96,7 @@ void horizontal_blur_extend(const T * in, T * out, const int w, const int h, con
         { 
             acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : lv[ch];
             acc[ch] -= li >= i*w ?      in[li*C+ch] : fv[ch];
-            out[ti*C+ch] = acc[ch]*iarr;
+            out[ti*C+ch] = std::is_integral_v<T> ? acc[ch]*iarr+0.5f : acc[ch]*iarr; // fixes darkening with integer types 
         }
     }
 }
