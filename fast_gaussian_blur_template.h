@@ -66,6 +66,8 @@ enum BorderPolicy
 //! \param[in] h            image height
 //! \param[in] r            box dimension
 //!
+
+// original generic version
 template<typename T, int C>
 void horizontal_blur_extend(const T * in, T * out, const int w, const int h, const int r)
 {
@@ -76,13 +78,19 @@ void horizontal_blur_extend(const T * in, T * out, const int w, const int h, con
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
-        int ti = i*w, li = ti-r-1, ri = ti+r;   // current index, left index, right index
-        calc_type fv[C], lv[C], acc[C];         // first value, last value, sliding accumulator
+        const int begin = i*w;
+        const int end = begin+w; 
+
+        // current index, left index, right index
+        int ti = begin, li = begin-r-1, ri = begin+r;   
+        
+        // first value, last value, sliding accumulator
+        calc_type fv[C], lv[C], acc[C];                 
 
         for(int ch = 0; ch < C; ++ch)
         {
-            fv[ch] =  in[ti*C+ch];
-            lv[ch] =  in[(ti+w-1)*C+ch];
+            fv[ch] =  in[begin*C+ch];
+            lv[ch] =  in[(end-1)*C+ch];
             acc[ch] = (r+1)*fv[ch]; 
         }
 
@@ -90,15 +98,111 @@ void horizontal_blur_extend(const T * in, T * out, const int w, const int h, con
         for(int j=0; j<r; j++) 
         for(int ch = 0; ch < C; ++ch)
         {
-            acc[ch] += ti+j < ti+w ? in[(ti+j)*C+ch] : lv[ch]; 
+            // prefilling the accumulator with the last value seems slower than/equal to this ternary 
+            acc[ch] += j < w ? in[(begin+j)*C+ch] : lv[ch];
         }
-
+        
         // perform filtering
         for(int j=0; j<w; j++, ri++, ti++, li++) 
         for(int ch = 0; ch < C; ++ch)
         { 
-            acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : lv[ch];
-            acc[ch] -= li >= i*w ?      in[li*C+ch] : fv[ch];
+            acc[ch] += ri < end ?       in[ri*C+ch] : lv[ch];
+            acc[ch] -= li >= begin ?    in[li*C+ch] : fv[ch];
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
+        }
+    }
+}
+
+// version for kernels that are correctly sized, that is when r <= w
+template<typename T, int C>
+void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, const int h, const int r)
+{
+    // change the local variable types depending on the template type for faster calculations
+    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+
+    float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        const int begin = i*w;
+        const int end = begin+w; 
+        int ti = begin, li = begin, ri = begin+r; // current index, left index, right index
+        calc_type fv[C], lv[C], acc[C];         // first value, last value, sliding accumulator
+
+        // init fv, lv, acc by extending outside the image buffer
+        for(int ch = 0; ch < C; ++ch)
+        {
+            fv[ch] =  in[ti*C+ch];
+            lv[ch] =  in[(ti+w-1)*C+ch];
+            acc[ch] = (r+1)*fv[ch]; 
+        }
+
+        // initial acucmulation inside the image buffer
+        for(int j=0; j < r; j++) 
+        for(int ch = 0; ch < C; ++ch)
+        {
+            // prefilling the accumulator with the last value seems slower than/equal to this ternary 
+            acc[ch] += j < w ? in[(begin+j)*C+ch] : lv[ch]; 
+        }
+
+        for(int j=0; j<=r; j++, ri++, ti++) // remove li++ and li=begin instead of li=begin-r-1
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += in[ri*C+ch] - fv[ch]; 
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
+        }
+
+        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
+
+        }
+
+        for(int j=w-r; j<w; j++, ti++, li++) // remove ri++
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += lv[ch] - in[li*C+ch]; 
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
+        }
+    }
+}
+
+// version for kernels that are too large, that is when r > w
+template<typename T, int C>
+void horizontal_blur_extend_large_kernel(const T * in, T * out, const int w, const int h, const int r)
+{
+    // change the local variable types depending on the template type for faster calculations
+    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+
+    float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        const int begin = i*w;
+        const int end = begin+w; 
+        calc_type fv[C], lv[C], acc[C]; // first value, last value, sliding accumulator
+
+        for(int ch = 0; ch < C; ++ch)
+        {
+            fv[ch] =  in[begin*C+ch];
+            lv[ch] =  in[(end-1)*C+ch];
+            acc[ch] = (r+1)*fv[ch]; 
+        }
+
+        // initial acucmulation
+        for(int j=0; j<r; j++) 
+        for(int ch = 0; ch < C; ++ch)
+        {
+            // prefilling the accumulator with the last value seems slower than/equal to this ternary 
+            acc[ch] += j < w ? in[(begin+j)*C+ch] : lv[ch]; 
+        }
+
+        for(int ti = begin; ti < end; ti++)
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            acc[ch] += lv[ch] - fv[ch]; 
             out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types 
         }
     }
@@ -176,7 +280,11 @@ void horizontal_blur(const T * in, T * out, const int w, const int h, const int 
 {
     if constexpr(P == kExtend)
     {
-        horizontal_blur_extend<T,C>(in, out, w, h, r);
+        // horizontal_blur_extend<T,C>(in, out, w, h, r);   // generic version
+        if( r > w ) 
+            horizontal_blur_extend_large_kernel<T,C>(in, out, w, h, r); // large kernels version
+        else        
+            horizontal_blur_extend_small_kernel<T,C>(in, out, w, h, r); // small kernels version
     }
     else
     {
