@@ -126,8 +126,8 @@ void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, con
     {
         const int begin = i*w;
         const int end = begin+w; 
-        int ti = begin, li = begin, ri = begin+r; // current index, left index, right index
-        calc_type fv[C], lv[C], acc[C];         // first value, last value, sliding accumulator
+        int ti = begin, li = begin, ri = begin+r;   // current index, left index, right index
+        calc_type fv[C], lv[C], acc[C];             // first value, last value, sliding accumulator
 
         // init fv, lv, acc by extending outside the image buffer
         for(int ch = 0; ch < C; ++ch)
@@ -138,14 +138,14 @@ void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, con
         }
 
         // initial acucmulation inside the image buffer
-        for(int j=0; j < r; j++) 
+        for(int j=ti; j < ri; j++) 
         for(int ch = 0; ch < C; ++ch)
         {
             // prefilling the accumulator with the last value seems slower than/equal to this ternary 
-            acc[ch] += j < w ? in[(begin+j)*C+ch] : lv[ch]; 
+            acc[ch] += in[j*C+ch]; 
         }
 
-        for(int j=0; j<=r; j++, ri++, ti++) // remove li++ and li=begin instead of li=begin-r-1
+        for(int j=0; j<=r; j++, ri++, ti++) // remove li++ and add li=begin instead of li=begin-r-1
         for(int ch = 0; ch < C; ++ch)
         { 
             acc[ch] += in[ri*C+ch] - fv[ch]; 
