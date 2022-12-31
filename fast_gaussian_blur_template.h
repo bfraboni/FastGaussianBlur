@@ -1,5 +1,5 @@
 // Copyright (C) 2017-2022 Basile Fraboni
-// Copyright (C) 2014 Ivan Kutskir (for the original fast blur implmentation)
+// Copyright (C) 2014 Ivan Kutskir (for the original fast blur implementation)
 // All Rights Reserved
 // You may use, distribute and modify this code under the
 // terms of the MIT license. For further details please refer 
@@ -44,14 +44,17 @@
 //! 
 //! For a detailed description of border policies please refer to:
 //! https://en.wikipedia.org/wiki/Kernel_(image_processing)#Edge_Handling
+//! https://www.intel.com/content/www/us/en/develop/documentation/ipp-dev-reference/top/volume-2-image-processing/filtering-functions-2/user-defined-border-types.html
+//! https://docs.opencv.org/3.4/d2/de8/group__core__array.html#ga209f2f4869e304c82d07739337eae7c5
+//! http://iihm.imag.fr/Docs/java/jai1_0guide/Image-enhance.doc.html
 //!
 //! \todo Add support for other border policies (wrap, mirror)
 enum BorderPolicy 
 {
     kExtend, 
     kKernelCrop, 
-    // kWrap, 
     // kMirror, 
+    // kWrap, 
 };
 
 //!
@@ -72,7 +75,7 @@ template<typename T, int C>
 void horizontal_blur_extend(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
-    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
     float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
@@ -118,7 +121,7 @@ template<typename T, int C>
 void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
-    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
     float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
@@ -138,10 +141,9 @@ void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, con
         }
 
         // initial acucmulation inside the image buffer
-        for(int j=ti; j < ri; j++) 
+        for(int j=ti; j<ri; j++) 
         for(int ch = 0; ch < C; ++ch)
         {
-            // prefilling the accumulator with the last value seems slower than/equal to this ternary 
             acc[ch] += in[j*C+ch]; 
         }
 
@@ -174,7 +176,7 @@ template<typename T, int C>
 void horizontal_blur_extend_large_kernel(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
-    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
     float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
@@ -224,42 +226,188 @@ template<typename T, int C>
 void horizontal_blur_kernel_crop(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
-    using calc_type = std::conditional_t<std::is_integral<T>::value, int, float>;
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
-        int ti = i*w, li = ti-r-1, ri = ti+r;   // current index, left index, right index
-        calc_type acc[C];                       // sliding accumulator
-
-        for(int ch = 0; ch < C; ++ch)
-        {
-            acc[ch] = 0; 
-        }
+        const int begin = i*w;
+        const int end = begin+w; 
+        int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
+        calc_type acc[C] = { 0 };                       // sliding accumulator
 
         // initial acucmulation
-        for(int j=0; j<r; j++) 
+        for(int j=ti; j<ri; j++) 
         for(int ch = 0; ch < C; ++ch)
         {
-            acc[ch] += ti+j < ti+w ? in[(ti+j)*C+ch] : 0; 
+            acc[ch] += j < end ? in[j*C+ch] : 0; 
         }
 
         // perform filtering
         for(int j=0; j<w; j++, ri++, ti++, li++) 
         for(int ch = 0; ch < C; ++ch)
         { 
-            acc[ch] += ri < (i+1)*w ?   in[ri*C+ch] : 0;
-            acc[ch] -= li >= i*w ?      in[li*C+ch] : 0;
-            int start = std::max(i*w-1, li);
-            int end = std::min((i+1)*w-1, ri);
+            acc[ch] += ri < end ?       in[ri*C+ch] : 0;
+            acc[ch] -= li >= begin ?    in[li*C+ch] : 0;
+            int kbegin = li >= begin ?  li : begin;     // begin-1 maybe needed ??
+            int kend = ri < end ?       ri : end;       // end-1 maybe needed ??
             // renormalize kernel
-            out[ti*C+ch] = acc[ch]/float(end-start) + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types;
+            out[ti*C+ch] = acc[ch]/float(kend-kbegin) + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types;
         }
     }
 }
 
-//! template<typename T, int C> 
-//! void horizontal_blur_mirror(const T * in, T * out, const int w, const int h, const int r);
+// mirror 101 functions
+static inline int mirror_no_repeat(const int begin, const int end, const int index)
+{
+    if(index >= begin && index < end)
+    {
+        return index;
+    }
+
+    const int length = end-begin, last = end-1, slength = length-1;
+    const int pindex = index < begin ? last-index+slength : index-begin;
+    const int repeat = pindex / slength;
+    const int mod = pindex % slength;
+    return repeat%2 ? slength-mod+begin : mod+begin;
+}
+
+struct Extend
+{
+    inline int operator()(const int begin, const int end, const int index)
+    {
+        return std::min(end-1, std::max(begin, index));
+    }
+};
+
+struct Wrap
+{
+    inline int operator()(const int begin, const int end, const int index)
+    {
+        const int length = end-begin;
+        const int repeat = std::abs(index / length)+1; 
+        const int value = index + repeat * length;    
+        return begin+(value%length);
+    }
+};
+
+struct Mirror
+{
+    inline int operator()(const int begin, const int end, const int index)
+    {
+        if(index >= begin && index < end)
+            return index;
+
+        const int length = end-begin, last = end-1, slength = length-1;
+        const int pindex = index < begin ? last-index+slength : index-begin;
+        const int repeat = pindex / slength;
+        const int mod = pindex % slength;
+        return repeat%2 ? slength-mod+begin : mod+begin;
+    }
+};
+
+template<typename T, int C>
+void horizontal_blur_mirror_large_kernel(const T* in, T* out, const int w, const int h, const int r)
+{
+    // change the local variable types depending on the template type for faster calculations
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
+
+    float iarr = 1.f / (r+r+1);
+    #pragma omp parallel for
+    for(int i=0; i<h; i++) 
+    {
+        const int begin = i*w;
+        const int end = begin+w; 
+        int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
+        calc_type acc[C] = { 0 };                       // sliding accumulator
+
+        // initial acucmulation
+        for(int j=li; j<ri; j++) 
+        for(int ch = 0; ch < C; ++ch)
+        {
+            const int id = mirror_no_repeat(begin, end, j); // mirrored id
+            acc[ch] += in[id*C+ch];
+        }
+
+        // perform filtering
+        for(int j=0; j<w; j++, ri++, ti++, li++) 
+        for(int ch = 0; ch < C; ++ch)
+        { 
+            const int rid = mirror_no_repeat(begin, end, ri); // right mirrored id 
+            const int lid = mirror_no_repeat(begin, end, li); // left mirrored id
+            acc[ch] += in[rid*C+ch] - in[lid*C+ch];
+            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0); // fixes darkening with integer types;
+        }
+    }
+}
+
+template<typename T, int C>
+void horizontal_blur_mirror_small_kernel(const T* in, T* out, const int w, const int h, const int r)
+{
+    // change the local variable types depending on the template type for faster calculations
+    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
+
+    const float iarr = 1.f / (r + r + 1);
+    #pragma omp parallel for
+    for (int i = 0; i < h; i++)
+    {
+        const int begin = i * w, end = begin + w, max_end = end - 1;
+        int li = begin + r;                 // left index(mirrored in the beginning)
+        int ri = begin + r + 1;             // right index(mirrored at the end)
+        calc_type acc[C] = { 0 };           // sliding accumulator
+
+        // for ksize = 7, and r = 3, and array length = 11
+        // array is [ a b c d e f g h i j k ]
+        // emulated array is [d c b _ a b c d e f g h i j k _ j i h]
+        // emulating the left padd: the initial accumulation is (d + c + b + a + b + c + d) --> 2 * (a + b + c + d) - a
+
+        for (int ch = 0; ch < C; ++ch) // less cache coherent if here
+        {
+            for (int j = 0; j <= r; j++)
+                acc[ch] += 2 * in[(begin + j) * C + ch];
+            acc[ch] -= in[begin * C + ch]; // remove extra pivot value
+
+            // calculated first value
+            out[begin * C + ch] = acc[ch] * iarr + (std::is_integral_v<T> ? 0.5f : 0);
+        }
+
+        ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+
+        for (int j = begin + 1; j < begin + r + 1; ++j)
+        {
+            for (int ch = 0; ch < C; ++ch)
+            {
+                //ri < end ? ri : max_end - ri % max_end   <--  reading in a reverse way 
+                //when reached the end of the row buffer and starting to read the "emulated" right pad
+                acc[ch] += in[(ri < end ? ri : max_end - ri % max_end) * C + ch] - in[li * C + ch];
+                out[j * C + ch] = acc[ch] * iarr + (std::is_integral_v<T> ? 0.5f : 0);
+            }
+            --li, ++ri;
+        }
+
+        //this loop won't be executed when r > w / 2 - 2 therefore the end of the image buffer will never be reached
+        for (int j = begin + r + 1; j < end - r - 1; ++j)
+        {
+            for (int ch = 0; ch < C; ++ch)
+            {
+                acc[ch] += in[ri * C + ch] - in[li * C + ch];
+                out[j * C + ch] = acc[ch] * iarr + (std::is_integral_v<T> ? 0.5f : 0);
+            }
+            ++li, ++ri;
+        }
+
+        for (int j = end - r - 1; j < end; ++j)
+        {
+            for (int ch = 0; ch < C; ++ch)
+            {
+                acc[ch] += in[(ri < end ? ri : max_end - ri % max_end) * C + ch] - in[li * C + ch];
+                out[j * C + ch] = acc[ch] * iarr + (std::is_integral_v<T> ? 0.5f : 0);
+            }
+            ++li, --ri;
+        }
+    }
+}
 //! template<typename T, int C> 
 //! void horizontal_blur_wrap(const T * in, T * out, const int w, const int h, const int r);
 
@@ -278,6 +426,11 @@ void horizontal_blur_kernel_crop(const T * in, T * out, const int w, const int h
 template<typename T, int C, BorderPolicy P = kExtend>
 void horizontal_blur(const T * in, T * out, const int w, const int h, const int r)
 {
+
+#if 1
+    horizontal_blur_mirror_large_kernel<T,C>(in, out, w, h, r);
+    // horizontal_blur_mirror_small_kernel<T,C>(in, out, w, h, r);
+#else
     if constexpr(P == kExtend)
     {
         // horizontal_blur_extend<T,C>(in, out, w, h, r);   // generic version
@@ -290,6 +443,7 @@ void horizontal_blur(const T * in, T * out, const int w, const int h, const int 
     {
         horizontal_blur_kernel_crop<T,C>(in, out, w, h, r);
     }
+#endif
 }
 
 //!
