@@ -104,6 +104,25 @@ Special thanks to Jean-Claude Iehl (@jciehl) for our insightful discussions and 
 
 You may use, distribute and modify this code under the terms of the MIT license. For further details please refer to : https://mit-license.org/
 
+## Changelog
+
+v1.1
+
+- [ ] rework the `horizontal_blur_mirror_small_kernel` function 
+
+v1.0
+
+- [x] make border policy a parameter (template or function parameter)
+- [x] add support for wrap and mirror (without repetition border policies)
+    - add `horizontal_blur_mirror_small_kernel`
+    - add `horizontal_blur_mirror_large_kernel`
+    - add `horizontal_blur_wrap_small_kernel`
+    - add `horizontal_blur_wrap_large_kernel`
+- [x] faster kernel crop policy for small kernels
+    - add `horizontal_blur_kernel_crop_small_kernel`
+    - add `horizontal_blur_kernel_crop_large_kernel`
+- [x] minor fixes
+
 ## References
 
 - [Recursive gaussian filters](https://software.intel.com/content/dam/develop/external/us/en/documents/cwp546-181134.pdf)

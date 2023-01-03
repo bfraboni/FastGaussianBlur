@@ -19,7 +19,7 @@ int main(int argc, char * argv[])
     // helper
     if( argc < 4 )
     {
-        printf("%s [input] [output] [sigma] [passes - optional]\n", argv[0]);
+        printf("%s [input] [output] [sigma] [passes - optional] [border policy - optional]\n", argv[0]);
         exit(1);
     }
 
@@ -29,8 +29,14 @@ int main(int argc, char * argv[])
     printf("Source image: %s %dx%d (%d)\n", argv[1], width, height, channels);
 
     // read parameters
-    float sigma = std::atof(argv[3]);
-    int passes = argc > 4 ? std::atoi(argv[4]) : 3;
+    const float sigma = std::atof(argv[3]);
+    const int passes = argc > 4 ? std::atoi(argv[4]) : 3;
+    const std::string policy = argc > 5 ? std::string(argv[5]) : "mirror";
+    BorderPolicy ipolicy;
+    if (policy == "mirror") ipolicy = BorderPolicy::kMirror;
+    if (policy == "extend") ipolicy = BorderPolicy::kExtend;
+    if (policy == "kcrop")  ipolicy = BorderPolicy::kKernelCrop;
+    if (policy == "wrap")   ipolicy = BorderPolicy::kWrap;
     
     // temporary data
     std::size_t size = width * height * channels;
@@ -58,7 +64,7 @@ int main(int argc, char * argv[])
     // perform gaussian blur
     // note: the implementation can work on any buffer types (uint8, uint16, uint32, int, float, double)
     // note: both old and new buffer are modified
-    fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes);
+    fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes, ipolicy);
     
     // stats
     auto end = std::chrono::system_clock::now();
