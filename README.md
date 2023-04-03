@@ -1,6 +1,43 @@
 # Fast Gaussian Blur
 
-Header only C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf). The code uses STB_IMAGE and STB_IMAGE_WRITE by stb for image manipulation: [stb github](https://github.com/nothings/stb). 
+Header only C++ implementation of a fast gaussian blur approximation in linear time. It is based on a blog post by Ivan Kutskir: [blog](http://blog.ivank.net/fastest-gaussian-blur.html). Which refers to a presentation by Wojciech Jarosz: [slides](http://elynxsdk.free.fr/ext-docs/Blur/Fast_box_blur.pdf). Which itself describes an algorithm from the paper **Fast Almost-Gaussian Filtering** by Peter Kovesi: [site](https://www.peterkovesi.com/matlabfns/#integral), [paper](https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf).
+The demo code uses STB_IMAGE and STB_IMAGE_WRITE by [stb](https://github.com/nothings/stb) for image manipulation. 
+
+## Implementation
+
+The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
+The main exposed function and its arguments are:
+```c++
+template<typename T>
+void fast_gaussian_blur(
+    T *& in,                //! ref to source buffer ptr
+    T *& out,               //! ref to target buffer ptr
+    const int w,            //! image width
+    const int h,            //! image height
+    const int c,            //! image channels (currently supports up to 4)
+    const float sigma,      //! Gaussian std deviation
+    const unsigned int n,   //! number of filter passes (currently supports up to 10)
+    const BorderPolicy p    //! image border handling (kExtend, kMirror, kKernelCrop, kWrap)
+);
+
+```
+Note that the number of supported channels or passes can be easily extended by adding the corresponding lines in the templates dispatcher helper function.
+<!-- where the arguments are:
+- `in` is a reference to the source buffer ptr, 
+- `out` is a reference to the target buffer ptr, 
+- `w` is the image width, 
+- `h` is the image height, 
+- `c` is the image number of channels, 
+- `sigma` is the desired Gaussian standard deviation, 
+- `n` is the number of box blur passes to perform.  -->
+Note that the buffer values (input and output) and their pointers are modified during the process hence they can not be constant.
+
+This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
+Hence it may be used for real-time applications with reasonable image resolutions. 
+A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes). 
+
+Note that I have tried to beat the template version with an ISPC compiled version, but still can not match the performance. 
+If one manage to improve this version I would be pleased to discuss how :)
 
 ## Algorithm
 
@@ -42,48 +79,9 @@ For further details please refer to:
 - http://blog.ivank.net/fastest-gaussian-blur.html
 - https://www.peterkovesi.com/papers/FastGaussianSmoothing.pdf
 
-## Implementation
-
-The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
-The main exposed function and its arguments are:
-```c++
-template<typename T>
-void fast_gaussian_blur(
-    T *& in,                //! ref to source buffer ptr
-    T *& out,               //! ref to target buffer ptr
-    const int w,            //! image width
-    const int h,            //! image height
-    const int c,            //! image channels (currently supports up to 4)
-    const float sigma,      //! Gaussian std deviation
-    const unsigned int n,   //! number of filter passes (currently supports up to 10)
-    const BorderPolicy p    //! image border handling (one of: kExtend, kMirror, kKernelCrop, kWrap)
-);
-
-```
-Note that the number of supported channels or passes can be easily extended by adding the corresponding lines in the templates dispatcher helper function.
-<!-- where the arguments are:
-- `in` is a reference to the source buffer ptr, 
-- `out` is a reference to the target buffer ptr, 
-- `w` is the image width, 
-- `h` is the image height, 
-- `c` is the image number of channels, 
-- `sigma` is the desired Gaussian standard deviation, 
-- `n` is the number of box blur passes to perform.  -->
-Note that the buffer values (input and output) and their pointers are modified during the process hence they can not be constant.
-
-This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
-Hence it may be used for real-time applications with reasonable image resolutions. 
-A SIMD vectorized or a GPU version of this algorithm could be significantly faster (but may be painful for the developper for arbitrary channels number / data sizes). 
-
-Note that I have tried to beat the template version with an ISPC compiled version, but still can not match the performance. 
-If one manage to improve this version I would be pleased to discuss how :)
-
-## Compilation
+## Demo application
 
 In a Unix or WSL term you can use the provided makefile; use `make` to build the target `fastblur` example (main.cpp) without dependencies.
-
-## Usage
-
 Run the program with the following command:
 
 `./fastblur <input_filename> <output_filename> <sigma> <passes = 3>`
