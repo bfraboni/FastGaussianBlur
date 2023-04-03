@@ -45,20 +45,30 @@ For further details please refer to:
 ## Implementation
 
 The implementation is defined in the `fast_gaussian_blur_template.h` header that contains the fastest templated cache coherent version I could make.
-The main exposed function is defined as:
+The main exposed function and its arguments are:
 ```c++
 template<typename T>
-void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n);
+void fast_gaussian_blur(
+    T *& in,                //! ref to source buffer ptr
+    T *& out,               //! ref to target buffer ptr
+    const int w,            //! image width
+    const int h,            //! image height
+    const int c,            //! image channels (currently supports up to 4)
+    const float sigma,      //! Gaussian std deviation
+    const unsigned int n,   //! number of filter passes (currently supports up to 10)
+    const BorderPolicy p    //! image border handling (one of: kExtend, kMirror, kKernelCrop, kWrap)
+);
+
 ```
-where the arguments are:
+Note that the number of supported channels or passes can be easily extended by adding the corresponding lines in the templates dispatcher helper function.
+<!-- where the arguments are:
 - `in` is a reference to the source buffer ptr, 
 - `out` is a reference to the target buffer ptr, 
 - `w` is the image width, 
 - `h` is the image height, 
 - `c` is the image number of channels, 
 - `sigma` is the desired Gaussian standard deviation, 
-- `n` is the number of box blur passes to perform. 
-
+- `n` is the number of box blur passes to perform.  -->
 Note that the buffer values (input and output) and their pointers are modified during the process hence they can not be constant.
 
 This version blurs 2000k pixels in ~7ms on all cores of a Ryzen 7 2700X CPU with OpenMP. 
@@ -108,12 +118,13 @@ You may use, distribute and modify this code under the terms of the MIT license.
 
 v1.1
 
-- [ ] rework the `horizontal_blur_mirror_small_kernel` function 
+- [ ] rework `horizontal_blur_mirror_small_kernel` function
+- [ ] add `horizontal_blur_wrap_small_kernel` function
 
 v1.0
 
-- [x] make border policy a parameter (template or function parameter)
-- [x] add support for wrap and mirror (without repetition border policies)
+- [x] make border policy a parameter
+- [x] add support for wrap and mirror (without repetition) border policies
     - add `horizontal_blur_mirror_small_kernel`
     - add `horizontal_blur_mirror_large_kernel`
     - add `horizontal_blur_wrap_small_kernel`
