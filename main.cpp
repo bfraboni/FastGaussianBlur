@@ -19,7 +19,12 @@ int main(int argc, char * argv[])
     // helper
     if( argc < 4 )
     {
-        printf("%s [input] [output] [sigma] [passes - optional] [border policy - optional]\n", argv[0]);
+        printf("%s [input] [output] [sigma] [order - optional] [border - optional]\n", argv[0]);
+        printf("\n- input: extension should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].\n");
+        printf("- output: extension should be any of [.png, .jpg, .bmp] (unknown extensions will be saved as .png by default).\n");
+        printf("- sigma: desired Gaussian standard deviation (float).\n");
+        printf("- order: filter order [1: box, 2: bilinear, 3: biquadratic, 4. bicubic, ..., 10] (default is 3, max order is 10)\n");
+        printf("- border: treatment at image boundaries [mirror, extend, crop, wrap] (default is mirror)\n");
         exit(1);
     }
 
@@ -32,11 +37,12 @@ int main(int argc, char * argv[])
     const float sigma = std::atof(argv[3]);
     const int passes = argc > 4 ? std::atoi(argv[4]) : 3;
     const std::string policy = argc > 5 ? std::string(argv[5]) : "mirror";
-    BorderPolicy ipolicy;
-    if (policy == "mirror") ipolicy = BorderPolicy::kMirror;
-    if (policy == "extend") ipolicy = BorderPolicy::kExtend;
-    if (policy == "kcrop")  ipolicy = BorderPolicy::kKernelCrop;
-    if (policy == "wrap")   ipolicy = BorderPolicy::kWrap;
+    Border border;
+    if (policy == "mirror")         border = Border::kMirror;
+    else if (policy == "extend")    border = Border::kExtend;
+    else if (policy == "crop")      border = Border::kKernelCrop;
+    else if (policy == "wrap")      border = Border::kWrap;
+    else                            border = Border::kMirror;
     
     // temporary data
     std::size_t size = width * height * channels;
@@ -64,7 +70,7 @@ int main(int argc, char * argv[])
     // perform gaussian blur
     // note: the implementation can work on any buffer types (uint8, uint16, uint32, int, float, double)
     // note: both old and new buffer are modified
-    fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes, ipolicy);
+    fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes, border);
     
     // stats
     auto end = std::chrono::system_clock::now();
