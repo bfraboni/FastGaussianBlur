@@ -129,7 +129,7 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
                 out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
             }
         }
-        else if constexpr(kernel == kSmall)
+        if constexpr(kernel == kSmall)
         {
             // current index, left index, right index
             int ti = begin, li = begin-r-1, ri = begin+r;
@@ -168,7 +168,7 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
                 out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
             }
         }
-        else if constexpr(kernel == kMid)
+        if constexpr(kernel == kMid)
         {
             // current index, left index, right index
             int ti = begin, li = begin-r-1, ri = begin+r;
@@ -179,7 +179,7 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
             {
                 acc[ch] += in[j*C+ch]; 
             }
-            
+
             // 1. left side out and right side in
             for(; ri<end; ri++, ti++, li++) 
             for(int ch=0; ch<C; ++ch)
@@ -221,96 +221,117 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
 //! \param[in] h            image height
 //! \param[in] r            box dimension
 //!
-template<typename T, int C>
-inline void horizontal_blur_kernel_crop_small_kernel(const T * in, T * out, const int w, const int h, const int r)
+template<typename T, int C, Kernel kernel = kSmall>
+inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
     const float iarr = 1.f / (r+r+1);
+    const float iwidth = 1.f / w;
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
         const int begin = i*w;
         const int end = begin+w; 
-        int ti = begin, li = begin, ri = begin+r;   // current index, left index, right index
-        calc_type acc[C] = { 0 };                   // sliding accumulator
+        calc_type acc[C] = { 0 };
 
-        // initial acucmulation
-        for(int j=ti; j<ri; j++) 
-        for(int ch=0; ch<C; ++ch)
+        if constexpr(kernel == kLarge)
         {
-            acc[ch] += in[j*C+ch]; 
+            // initial acucmulation
+            for(int j=begin; j<end; j++) 
+            for(int ch=0; ch < C; ++ch)
+            {
+                acc[ch] += in[j*C+ch];
+            }
+
+            // this is constant
+            for(int j=begin; j<end; j++) 
+            for(int ch=0; ch < C; ++ch)
+            {
+                out[j*C+ch] = acc[ch]*iwidth + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
         }
-
-        for(int j=0; j<=r; j++, ri++, ti++) // remove li++ and add li=begin instead of li=begin-r-1
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] += in[ri*C+ch];
-            const float inorm = 1.f / float(ri+1-begin);
-            out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
-        }
-
-        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] += in[ri*C+ch] - in[li*C+ch];
-            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
-        }
-
-        for(int j=w-r; j<w; j++, ti++, li++) // remove ri++
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] -= in[li*C+ch];
-            const float inorm = 1.f / float(end-li-1);
-            out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
-        }
-    }
-}
-
-//!
-//! \brief This function performs a single separable horizontal box blur pass with kernel crop border policy.
-//! Templated by buffer data type T, buffer number of channels C.
-//! Generic version for kernels that are larger than the image width (r > w).
-//!
-//! \param[in] in           source buffer
-//! \param[in,out] out      target buffer
-//! \param[in] w            image width
-//! \param[in] h            image height
-//! \param[in] r            box dimension
-//!
-template<typename T, int C>
-inline void horizontal_blur_kernel_crop_large_kernel(const T * in, T * out, const int w, const int h, const int r)
-{
-    // change the local variable types depending on the template type for faster calculations
-    using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
-
-    #pragma omp parallel for
-    for(int i=0; i<h; i++) 
-    {
-        const int begin = i*w;
-        const int end = begin+w; 
-        int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
-        calc_type acc[C] = { 0 };                       // sliding accumulator
-
-        // initial acucmulation
-        for(int j=ti; j<ri; j++) 
-        for(int ch=0; ch < C; ++ch)
+        if constexpr(kernel == kMid)
         {
-            acc[ch] += j < end ? in[j*C+ch] : 0; 
+            // current index, left index, right index
+            int ti = begin, li = begin-r-1, ri = begin+r;   
+            
+            // initial acucmulation
+            for(int j=ti; j<ri; j++) 
+            for(int ch=0; ch<C; ++ch)
+            {
+                acc[ch] += in[j*C+ch]; 
+            }
+
+            // 1. left side out and right side in
+            for(; ri<end; ri++, ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch];
+                // assert(acc[ch] >= 0);
+                const float inorm = 1.f / float(ri+1-begin);
+                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 4. left side out and right side out
+            for(; li<begin; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                out[ti*C+ch] = acc[ch]*iwidth + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 3. left side in and right side out
+            for(; ti<end; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] -= in[li*C+ch]; 
+                // assert(acc[ch] >= 0);
+                const float inorm = 1.f / float(end-li-1);
+                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
         }
 
-        // perform filtering
-        for(int j=0; j<w; j++, ri++, ti++, li++) 
-        for(int ch=0; ch < C; ++ch)
-        { 
-            acc[ch] += ri < end ?       in[ri*C+ch] : 0;
-            acc[ch] -= li >= begin ?    in[li*C+ch] : 0;
-            const int kbegin = li >= begin ?  li+1 : begin;   // first id in the accumulator
-            const int kend = ri < end ?       ri+1 : end;     // last  id in the accumulator + 1
-            const float inorm = 1.f / float(kend-kbegin);
-            // renormalize kernel
-            out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+        if constexpr(kernel == kSmall)
+        {
+            // current index, left index, right index
+            int ti = begin, li = begin-r-1, ri = begin+r;
+
+            // initial acucmulation
+            for(int j=ti; j<ri; j++)
+            for(int ch=0; ch<C; ++ch)
+            {
+                acc[ch] += in[j*C+ch]; 
+            }
+
+            // 1. left side out and right side in
+            for(; li<begin; ri++, ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch];
+                // assert(acc[ch] >= 0);
+                const float inorm = 1.f / float(ri+1-begin);
+                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 2. left side in and right side in
+            for(; ri<end; ri++, ti++, li++) 
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+                // assert(acc[ch] >= 0);
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 3. left side in and right side out
+            for(; ti<end; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] -= in[li*C+ch]; 
+                // assert(acc[ch] >= 0);
+                const float inorm = 1.f / float(end-li-1);
+                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
         }
     }
 }
@@ -520,29 +541,21 @@ inline void horizontal_blur(const T * in, T * out, const int w, const int h, con
 {
     if constexpr(P == kExtend)
     {
-        if( r >= w )
-        {
-            horizontal_blur_extend<T,C,kLarge>(in, out, w, h, r); // large kernels version (fast)
-        }
-        else if( r >= w/2 ) 
-        {
-            horizontal_blur_extend<T,C,kMid>(in, out, w, h, r); // mid kernels version   (fast)
-        }
-        else
-        {
-            horizontal_blur_extend<T,C,kSmall>(in, out, w, h, r); // small kernels version (faster)
-        }
+        if( r < w/2 )       horizontal_blur_extend<T,C,Kernel::kSmall>(in, out, w, h, r);
+        else if( r < w )    horizontal_blur_extend<T,C,Kernel::kMid  >(in, out, w, h, r);
+        else                horizontal_blur_extend<T,C,Kernel::kLarge>(in, out, w, h, r);
+    }
+    else if constexpr(P == kKernelCrop)
+    {
+        if( r < w/2 )       horizontal_blur_kernel_crop<T,C,Kernel::kSmall>(in, out, w, h, r);
+        else if( r < w )    horizontal_blur_kernel_crop<T,C,Kernel::kMid  >(in, out, w, h, r);
+        else                horizontal_blur_kernel_crop<T,C,Kernel::kLarge>(in, out, w, h, r);
     }
     else if constexpr(P == kMirror)
     {
         // if( 2*r+1 >= w ) 
         horizontal_blur_mirror_large_kernel<T,C>(in, out, w, h, r); // large kernels version
         // else         horizontal_blur_mirror_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
-    }
-    else if constexpr(P == kKernelCrop)
-    {
-        if( 2*r+1 > w ) horizontal_blur_kernel_crop_large_kernel<T,C>(in, out, w, h, r); // large kernels version
-        else        horizontal_blur_kernel_crop_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
     }
     else if constexpr(P == kWrap)
     {
