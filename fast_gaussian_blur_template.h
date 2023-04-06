@@ -48,12 +48,34 @@
 //! - https://docs.opencv.org/3.4/d2/de8/group__core__array.html#ga209f2f4869e304c82d07739337eae7c5
 //! - http://iihm.imag.fr/Docs/java/jai1_0guide/Image-enhance.doc.html
 //!
-enum BorderPolicy
+enum Border
 {
     kExtend,
     kKernelCrop,
     kMirror,
     kWrap,
+};
+
+//!
+//! Sliding kernel accumulation results in 4 cases:
+//! 1. left side out and right side in
+//! 2. left side in and right side in
+//! 3. left side in and right side out
+//! 4. left side out and right side out
+//!
+//! Small (S) kernels defines kernels with radius < width; r < w
+//! Mid   (M) kernels defines kernels with kernel size < width; 2r+1 < w
+//! Large (L) kernels defines kernels with radius > width; r > w
+//!
+//! The fast version for (S) results in 3 loops for cases 1, 2 and 3.
+//! The fast version for (M) results in 3 loops for cases 1, 4 and 3.
+//! The fast version for (L) results in 1 loop for cases 4.
+//!
+enum Kernel
+{
+    kSmall,
+    kMid,
+    kLarge,
 };
 
 //!
@@ -67,19 +89,19 @@ enum BorderPolicy
 //! \param[in] h            image height
 //! \param[in] r            box dimension
 //!
-template<typename T, int C>
+template<typename T, int C, bool small = true>
 inline void horizontal_blur_extend_small_kernel(const T * in, T * out, const int w, const int h, const int r)
 {
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
-    float iarr = 1.f / (r+r+1);
+    const float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
         const int begin = i*w;
         const int end = begin+w; 
-        int ti = begin, li = begin, ri = begin+r;   // current index, left index, right index
+        int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
         calc_type fv[C], lv[C], acc[C];             // first value, last value, sliding accumulator
 
         // init fv, lv, acc by extending outside the image buffer
@@ -91,32 +113,66 @@ inline void horizontal_blur_extend_small_kernel(const T * in, T * out, const int
         }
 
         // initial acucmulation inside the image buffer
-        for(int j=ti; j<ri; j++) 
+        for(int j=ti; j<ri; j++)
         for(int ch=0; ch<C; ++ch)
         {
             acc[ch] += in[j*C+ch]; 
         }
 
-        for(int j=0; j<=r; j++, ri++, ti++) // remove li++ and add li=begin instead of li=begin-r-1
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] += in[ri*C+ch] - fv[ch]; 
-            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
+        if constexpr(small)
+        {
+            // 1. left side out and right side in
+            for(; li<begin; ri++, ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch] - fv[ch];
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 2. left side in and right side in
+            for(; ri<end; ri++, ti++, li++) 
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
+
+            // 3. left side in and right side out
+            for(; ti<end; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            {
+                acc[ch] += lv[ch] - in[li*C+ch];
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
         }
+        else
+        {
+            // 1. left side out and right side in
+            for(; ri<end; ri++, ti++, li++) 
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += in[ri*C+ch] - fv[ch];
+                // assert(acc[ch] >= 0);
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
 
-        for(int j=r+1; j<w-r; j++, ri++, ti++, li++) 
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
-            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
+            // 4. left side out and right side out
+            for(; li<begin; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += lv[ch] - fv[ch]; //! mid kernels
+                // assert(acc[ch] >= 0);
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
 
-        }
-
-        for(int j=w-r; j<w; j++, ti++, li++) // remove ri++
-        for(int ch=0; ch<C; ++ch)
-        { 
-            acc[ch] += lv[ch] - in[li*C+ch]; 
-            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
+            // 3. left side in and right side out
+            for(; ti<end; ti++, li++)
+            for(int ch=0; ch<C; ++ch)
+            { 
+                acc[ch] += lv[ch] - in[li*C+ch]; 
+                // assert(acc[ch] >= 0);
+                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            }
         }
     }
 }
@@ -138,19 +194,19 @@ inline void horizontal_blur_extend_large_kernel(const T * in, T * out, const int
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
-    float iarr = 1.f / (r+r+1);
+    const float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
-    for(int i=0; i<h; i++) 
+    for(int i=0; i<h; i++)
     {
         const int begin = i*w;
-        const int end = begin+w; 
+        const int end = begin+w;
         calc_type fv[C], lv[C], acc[C]; // first value, last value, sliding accumulator
 
         for(int ch=0; ch<C; ++ch)
         {
             fv[ch] =  in[begin*C+ch];
             lv[ch] =  in[(end-1)*C+ch];
-            acc[ch] = (r+1)*fv[ch]; 
+            acc[ch] = (r+1)*fv[ch];
         }
 
         // initial acucmulation
@@ -164,7 +220,8 @@ inline void horizontal_blur_extend_large_kernel(const T * in, T * out, const int
         for(int ti = begin; ti < end; ti++)
         for(int ch=0; ch<C; ++ch)
         { 
-            acc[ch] += lv[ch] - fv[ch]; 
+            acc[ch] += lv[ch] - fv[ch];
+            // assert(acc[ch] >= 0);
             out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
         }
     }
@@ -187,7 +244,7 @@ inline void horizontal_blur_kernel_crop_small_kernel(const T * in, T * out, cons
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
-    float iarr = 1.f / (r+r+1);
+    const float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
@@ -266,10 +323,11 @@ inline void horizontal_blur_kernel_crop_large_kernel(const T * in, T * out, cons
         { 
             acc[ch] += ri < end ?       in[ri*C+ch] : 0;
             acc[ch] -= li >= begin ?    in[li*C+ch] : 0;
-            int kbegin = li >= begin ?  li+1 : begin;   // first id in the accumulator
-            int kend = ri < end ?       ri+1 : end;     // last id in the accumulator + 1
+            const int kbegin = li >= begin ?  li+1 : begin;   // first id in the accumulator
+            const int kend = ri < end ?       ri+1 : end;     // last  id in the accumulator + 1
+            const float inorm = 1.f / float(kend-kbegin);
             // renormalize kernel
-            out[ti*C+ch] = acc[ch]/float(kend-kbegin) + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
         }
     }
 }
@@ -344,7 +402,7 @@ inline void horizontal_blur_mirror_small_kernel(const T* in, T* out, const int w
             acc[ch] += (std::is_integral_v<T> ? 2 : 2.f)*in[j*C+ch];
         }
 
-        int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
+        // int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
 
         for(int j = 1; j <= r; ++j, --li, ++ri, ++ti)
         for(int ch=0; ch<C; ++ch)
@@ -388,7 +446,7 @@ inline void horizontal_blur_mirror_large_kernel(const T* in, T* out, const int w
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
-    float iarr = 1.f / (r+r+1);
+    const float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
@@ -435,7 +493,7 @@ inline void horizontal_blur_wrap_large_kernel(const T* in, T* out, const int w, 
     // change the local variable types depending on the template type for faster calculations
     using calc_type = std::conditional_t<std::is_integral_v<T>, int, float>;
 
-    float iarr = 1.f / (r+r+1);
+    const float iarr = 1.f / (r+r+1);
     #pragma omp parallel for
     for(int i=0; i<h; i++) 
     {
@@ -474,22 +532,33 @@ inline void horizontal_blur_wrap_large_kernel(const T* in, T* out, const int w, 
 //! \param[in] h            image height
 //! \param[in] r            box dimension
 //!
-template<typename T, int C, BorderPolicy P = kMirror>
+template<typename T, int C, Border P = kMirror>
 inline void horizontal_blur(const T * in, T * out, const int w, const int h, const int r)
 {
     if constexpr(P == kExtend)
     {
-        if( r > w ) horizontal_blur_extend_large_kernel<T,C>(in, out, w, h, r); // large kernels version
-        else        horizontal_blur_extend_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
+        if( r >= w )
+        {
+            horizontal_blur_extend_large_kernel<T,C>(in, out, w, h, r); // large kernels version (fast)
+        }
+        else if( r >= w/2 ) 
+        {
+            horizontal_blur_extend_small_kernel<T,C,false>(in, out, w, h, r); // mid kernels version   (fast)
+        }
+        else
+        {
+            horizontal_blur_extend_small_kernel<T,C,true >(in, out, w, h, r); // small kernels version (faster)
+        }
     }
     else if constexpr(P == kMirror)
     {
-        if( r >= w ) horizontal_blur_mirror_large_kernel<T,C>(in, out, w, h, r); // large kernels version
-        else         horizontal_blur_mirror_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
+        // if( 2*r+1 >= w ) 
+        horizontal_blur_mirror_large_kernel<T,C>(in, out, w, h, r); // large kernels version
+        // else         horizontal_blur_mirror_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
     }
     else if constexpr(P == kKernelCrop)
     {
-        if( r > w ) horizontal_blur_kernel_crop_large_kernel<T,C>(in, out, w, h, r); // large kernels version
+        if( 2*r+1 > w ) horizontal_blur_kernel_crop_large_kernel<T,C>(in, out, w, h, r); // large kernels version
         else        horizontal_blur_kernel_crop_small_kernel<T,C>(in, out, w, h, r); // small kernels version (faster)
     }
     else if constexpr(P == kWrap)
@@ -508,7 +577,7 @@ inline void horizontal_blur(const T * in, T * out, const int w, const int h, con
 //! \param[in] c            image channels
 //! \param[in] r            box dimension
 //!
-template<typename T, BorderPolicy P = kMirror>
+template<typename T, Border P = kMirror>
 inline void horizontal_blur(const T * in, T * out, const int w, const int h, const int c, const int r)
 {
     switch(c)
@@ -640,7 +709,7 @@ inline float sigma_to_box_radius(int boxes[], const float sigma, const int n)
 //! \param[in] c            image channels
 //! \param[in] sigma        Gaussian standard deviation
 //!
-template<typename T, unsigned int N, BorderPolicy P>
+template<typename T, unsigned int N, Border P>
 inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma) 
 {
     // compute box kernel sizes
@@ -670,7 +739,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
 }
 
 // specialized 3 passes
-template<typename T, BorderPolicy P>
+template<typename T, Border P>
 inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma) 
 {
     // compute box kernel sizes
@@ -710,14 +779,14 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
 //! \param[in] sigma        Gaussian standard deviation
 //! \param[in] n            number of passes, should be > 0
 //!
-template<typename T, BorderPolicy P = kMirror>
+template<typename T, Border P = kMirror>
 void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n) 
 {
     switch(n)
     {
         case 1: fast_gaussian_blur<T,1,P>(in, out, w, h, c, sigma); break;
         case 2: fast_gaussian_blur<T,2,P>(in, out, w, h, c, sigma); break;
-        case 3: fast_gaussian_blur<T,P>(in, out, w, h, c, sigma); break;      // specialized 3 passes version
+        case 3: fast_gaussian_blur<T,  P>(in, out, w, h, c, sigma); break; // specialized 3 passes version
         case 4: fast_gaussian_blur<T,4,P>(in, out, w, h, c, sigma); break;
         case 5: fast_gaussian_blur<T,5,P>(in, out, w, h, c, sigma); break;
         case 6: fast_gaussian_blur<T,6,P>(in, out, w, h, c, sigma); break;
@@ -745,7 +814,7 @@ void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c
 //! \param[in] p            border policy {kExtend, kMirror, kKernelCrop, kWrap}
 //!
 template<typename T>
-void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n, const BorderPolicy p)
+void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n, const Border p)
 {
     switch(p)
     {
