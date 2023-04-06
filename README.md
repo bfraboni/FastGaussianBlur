@@ -10,18 +10,18 @@ The main exposed function and its arguments are:
 ```c++
 template<typename T>
 void fast_gaussian_blur(
-    T *& in,                //! ref to source buffer ptr
-    T *& out,               //! ref to target buffer ptr
-    const int w,            //! image width
-    const int h,            //! image height
-    const int c,            //! image channels (currently supports up to 4)
-    const float sigma,      //! Gaussian std deviation
-    const unsigned int n,   //! number of filter passes (currently supports up to 10)
-    const BorderPolicy p    //! image border handling (kExtend, kMirror, kKernelCrop, kWrap)
+    T *& in,             //! ref to source buffer ptr
+    T *& out,            //! ref to target buffer ptr
+    const int w,         //! image width
+    const int h,         //! image height
+    const int c,         //! image channels (currently supports up to 4)
+    const float sigma,   //! Gaussian std deviation
+    const uint32_t n,    //! number of box filter passes (currently supports up to 10)
+    const Border p       //! image border handling (one of: kExtend, kMirror, kKernelCrop, kWrap)
 );
 
 ```
-Note that the number of supported channels or passes can be easily extended by adding the corresponding lines in the templates dispatcher helper function.
+Note that the number of supported channels or passes can be easily extended by adding the corresponding lines in the template dispatcher functions.
 <!-- where the arguments are:
 - `in` is a reference to the source buffer ptr, 
 - `out` is a reference to the target buffer ptr, 
@@ -84,12 +84,13 @@ For further details please refer to:
 In a Unix or WSL term you can use the provided makefile; use `make` to build the target `fastblur` example (main.cpp) without dependencies.
 Run the program with the following command:
 
-`./fastblur <input_filename> <output_filename> <sigma> <passes = 3>`
+`./fastblur [input] [output] [sigma] [order - optional] [border - optional]`
 
-- input_image_filename should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].
-- output_image_filename should be any of [.png, .jpg, .bmp]  (unknown extensions will be saved as .png by default).
-- sigma is the desired Gaussian blur standard deviation (should be positive).
-- passes is an optional argument that controls the number of box blur passes (should be positive). Default is 3 and current implementation supports up to 10 passes, but one can easily add more in the code.
+- input:  extension should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].
+- output: extension should be any of [.png, .jpg, .bmp]. Unknown extensions will be saved as .png by default.
+- sigma:  Gaussian standard deviation (float). Should be positive.
+- order:  optional filter order [1: box, 2: bilinear, 3: biquadratic, 4. bicubic, ..., 10]. should be positive. Default is 3 and current implementation supports up to 10 box blur passes, but one can easily add more in the code.
+- border: optional treatment of image boundaries [mirror, extend, crop, wrap]. Default is mirror.
 
 ## Results
 
@@ -114,13 +115,28 @@ You may use, distribute and modify this code under the terms of the MIT license.
 
 ## Changelog
 
-v1.1
+v1.2
+- [ ] add Kernel support to the `horizontal_blur_wrap` function
+- [ ] add unit tests 
+- [ ] redo timings
 
-- [ ] rework `horizontal_blur_mirror_small_kernel` function
-- [ ] add `horizontal_blur_wrap_small_kernel` function
+v1.1
+- [x] bug fix for mid sized kernels. 
+- [x] added Kernel enum {kLarge, kMid, kSmall}.
+- [x] massive rework for extend, mirror and crop border policies with the above fix.
+    - split each funcion in 3 modes for `kLarge` (radius >= width), `kMid` (radius < width) and `kSmall` (radius < width/2) kernel sizes.
+    - introduce `template<typename T, int C, Kernel kernel> inline void horizontal_blur_mirror(...)`
+    - introduce `template<typename T, int C, Kernel kernel> inline void horizontal_blur_extend(...)`
+    - introduce `template<typename T, int C, Kernel kernel> inline void horizontal_blur_kernel_crop(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_mirror_small_kernel(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_mirror_large_kernel(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_extend_small_kernel(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_extend_large_kernel(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_kernel_small_kernel(...)`
+    - remove `template<typename T, int C> inline void horizontal_blur_kernel_large_kernel(...)`
+    - deep testing of singular cases
 
 v1.0
-
 - [x] make border policy a parameter
 - [x] add support for wrap and mirror (without repetition) border policies
     - add `horizontal_blur_mirror_small_kernel`

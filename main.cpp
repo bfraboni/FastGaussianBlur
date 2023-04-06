@@ -20,11 +20,14 @@ int main(int argc, char * argv[])
     if( argc < 4 )
     {
         printf("%s [input] [output] [sigma] [order - optional] [border - optional]\n", argv[0]);
-        printf("\n- input: extension should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].\n");
-        printf("- output: extension should be any of [.png, .jpg, .bmp] (unknown extensions will be saved as .png by default).\n");
-        printf("- sigma: desired Gaussian standard deviation (float).\n");
-        printf("- order: filter order [1: box, 2: bilinear, 3: biquadratic, 4. bicubic, ..., 10] (default is 3, max order is 10)\n");
-        printf("- border: treatment at image boundaries [mirror, extend, crop, wrap] (default is mirror)\n");
+        printf("\n");
+        printf("- input:  extension should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].\n");
+        printf("- output: extension should be any of [.png, .jpg, .bmp]. Unknown extensions will be saved as .png by default.\n");
+        printf("- sigma:  Gaussian standard deviation (float). Should be positive.\n");
+        printf("- order:  optional filter order [1: box, 2: bilinear, 3: biquadratic, 4. bicubic, ..., 10]. Should be positive.\n");
+        printf("          Default is 3 and current implementation supports up to 10 box blur passes, but one can easily add more in the code.\n");
+        printf("- border: optional treatment of image boundaries [mirror, extend, crop, wrap]. Default is mirror.\n");
+        printf("\n");
         exit(1);
     }
 
