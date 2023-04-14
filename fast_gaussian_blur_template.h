@@ -426,7 +426,7 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
             }
 
             // 1. left side out and right side in
-            for(; li<begin; ri++, ti++, li++)
+            for(; ri<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
                 const int lid = 2 * begin - li; // left mirrored id
@@ -436,7 +436,7 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
             }
 
             // 4. left side out and right side out
-            for(; ri<end; ri++, ti++, li++) 
+            for(; li<begin; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
                 const int rid = 2 * end - 2 - ri;   // right mirrored id 
