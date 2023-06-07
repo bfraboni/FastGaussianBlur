@@ -737,7 +737,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
     sigma_to_box_radius(boxes, sigma, N);
 
     // perform N horizontal blur passes
-    for(int i = 0; i < N; ++i)
+    for(unsigned int i = 0; i < N; ++i)
     {
         horizontal_blur<T,P>(in, out, w, h, c, boxes[i]);
         std::swap(in, out);
@@ -748,7 +748,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
     std::swap(in, out);
     
     // perform N horizontal blur passes on flipped image
-    for(int i = 0; i < N; ++i)
+    for(unsigned int i = 0; i < N; ++i)
     {
         horizontal_blur<T,P>(in, out, h, w, c, boxes[i]);
         std::swap(in, out);
