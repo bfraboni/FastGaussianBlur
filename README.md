@@ -115,15 +115,20 @@ You may use, distribute and modify this code under the terms of the MIT license.
 
 ## Changelog
 
-v1.2
+TODOs:
 - [ ] add Kernel support to the `horizontal_blur_wrap` function
 - [ ] add unit tests 
 - [ ] redo timings
+- [ ] make a single horizontal_blur function instead of 4 variants
+
+v1.2
+- remove `Index` structure in favor of the `remap_index` function
+- add `round_v<T>()` function for better readability
 
 v1.1
-- [x] bug fix for mid sized kernels. 
-- [x] added Kernel enum {kLarge, kMid, kSmall}.
-- [x] massive rework for extend, mirror and crop border policies with the above fix.
+- bug fix for mid sized kernels. 
+- added Kernel enum {kLarge, kMid, kSmall}.
+- massive rework for extend, mirror and crop border policies with the above fix.
     - split each funcion in 3 modes for `kLarge` (radius >= width), `kMid` (radius < width) and `kSmall` (radius < width/2) kernel sizes.
     - introduce `template<typename T, int C, Kernel kernel> inline void horizontal_blur_mirror(...)`
     - introduce `template<typename T, int C, Kernel kernel> inline void horizontal_blur_extend(...)`
@@ -137,16 +142,16 @@ v1.1
     - deep testing of singular cases
 
 v1.0
-- [x] make border policy a parameter
-- [x] add support for wrap and mirror (without repetition) border policies
+- make border policy a parameter
+- add support for wrap and mirror (without repetition) border policies
     - add `horizontal_blur_mirror_small_kernel`
     - add `horizontal_blur_mirror_large_kernel`
     - add `horizontal_blur_wrap_small_kernel`
     - add `horizontal_blur_wrap_large_kernel`
-- [x] faster kernel crop policy for small kernels
+- faster kernel crop policy for small kernels
     - add `horizontal_blur_kernel_crop_small_kernel`
     - add `horizontal_blur_kernel_crop_large_kernel`
-- [x] minor fixes
+- minor fixes
 
 ## References
 

@@ -56,6 +56,37 @@ enum Border
     kWrap,
 };
 
+//! Helper to compute array indices for different border policies.
+template<Border P>
+inline int remap_index(const int begin, const int end, const int index)
+{
+    const bool inside = index >= begin && index < end;
+    if (!inside)
+    {
+        if constexpr (P == kWrap)
+        {
+            const int length = end-begin;
+            const int repeat = std::abs(index / length)+1;
+            const int value = index + repeat * length;
+            return begin+(value%length);
+        }
+        else if constexpr (P == kMirror)
+        {
+            //! FIXME: is there a better way ?
+            const int length = end-begin, last = end-1, slength = length-1;
+            const int pindex = index < begin ? last-index+slength : index-begin;
+            const int repeat = pindex / slength;
+            const int mod = pindex % slength;
+            return repeat%2 ? slength-mod+begin : mod+begin;
+        }
+        else if constexpr (P == kExtend)
+        {
+            return std::min(end-1, std::max(begin, index));
+        }
+    }
+    return index;
+};
+
 //!
 //! Sliding kernel accumulation has 4 cases:
 //! 1. left side out and right side in
@@ -79,6 +110,13 @@ enum Kernel
 };
 
 //!
+//! \brief helper to compute rounding value for the specified type.
+//! This is used to alleviate integer types rounding errors causing image darkening.
+//!
+template<typename T>
+constexpr float round_v() { return std::is_integral_v<T> ? 0.5f : 0.f; }
+
+//!
 //! \brief This function performs a single separable horizontal box blur pass with border extend policy.
 //! Templated by buffer data type T, buffer number of channels C.
 //! Faster version for kernels that are smaller than the image width (r <= w).
@@ -100,7 +138,7 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
     for(int i=0; i<h; i++) 
     {
         const int begin = i*w;
-        const int end = begin+w; 
+        const int end = begin+w;
         calc_type fv[C], lv[C], acc[C];                 // first value, last value, sliding accumulator
 
         // init fv, lv, acc by extending outside the image buffer
@@ -108,7 +146,7 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
         {
             fv[ch] =  in[begin*C+ch];
             lv[ch] =  in[(end-1)*C+ch];
-            acc[ch] = (r+1)*fv[ch]; 
+            acc[ch] = (r+1)*fv[ch];
         }
 
         if constexpr(kernel == kLarge)
@@ -117,16 +155,16 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
             for(int j=0; j<r; j++)
             for(int ch=0; ch<C; ++ch)
             {
-                // prefilling the accumulator with the last value seems slower than/equal to this ternary 
+                // prefilling the accumulator with the last value seems slower than/equal to this ternary
                 acc[ch] += j < w ? in[(begin+j)*C+ch] : lv[ch];
             }
 
             for(int ti = begin; ti < end; ti++)
             for(int ch=0; ch<C; ++ch)
-            { 
+            {
                 acc[ch] += lv[ch] - fv[ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types 
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
         else if constexpr(kernel == kMid)
@@ -138,34 +176,34 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
             for(int j=ti; j<ri; j++)
             for(int ch=0; ch<C; ++ch)
             {
-                acc[ch] += in[j*C+ch]; 
+                acc[ch] += in[j*C+ch];
             }
 
             // 1. left side out and right side in
-            for(; ri<end; ri++, ti++, li++) 
+            for(; ri<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
+            {
                 acc[ch] += in[ri*C+ch] - fv[ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 4. left side out and right side out
             for(; li<begin; ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
+            {
                 acc[ch] += lv[ch] - fv[ch]; //! mid kernels
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
-                acc[ch] += lv[ch] - in[li*C+ch]; 
+            {
+                acc[ch] += lv[ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
         else if constexpr(kernel == kSmall)
@@ -177,34 +215,34 @@ inline void horizontal_blur_extend(const T * in, T * out, const int w, const int
             for(int j=ti; j<ri; j++)
             for(int ch=0; ch<C; ++ch)
             {
-                acc[ch] += in[j*C+ch]; 
+                acc[ch] += in[j*C+ch];
             }
 
             // 1. left side out and right side in
             for(; li<begin; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
+            {
                 acc[ch] += in[ri*C+ch] - fv[ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 2. left side in and right side in
-            for(; ri<end; ri++, ti++, li++) 
+            for(; ri<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
-                acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+            {
+                acc[ch] += in[ri*C+ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ti++, li++)
             for(int ch=0; ch<C; ++ch)
-            { 
-                acc[ch] += lv[ch] - in[li*C+ch]; 
+            {
+                acc[ch] += lv[ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
     }
@@ -230,26 +268,26 @@ inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, cons
     const float iarr = 1.f / (r+r+1);
     const float iwidth = 1.f / w;
     #pragma omp parallel for
-    for(int i=0; i<h; i++) 
+    for(int i=0; i<h; i++)
     {
         const int begin = i*w;
-        const int end = begin+w; 
+        const int end = begin+w;
         calc_type acc[C] = { 0 };
 
         if constexpr(kernel == kLarge)
         {
             // initial acucmulation
-            for(int j=begin; j<end; j++) 
+            for(int j=begin; j<end; j++)
             for(int ch=0; ch < C; ++ch)
             {
                 acc[ch] += in[j*C+ch];
             }
 
             // this is constant
-            for(int j=begin; j<end; j++) 
+            for(int j=begin; j<end; j++)
             for(int ch=0; ch < C; ++ch)
             {
-                out[j*C+ch] = acc[ch]*iwidth + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[j*C+ch] = acc[ch]*iwidth + round_v<T>();
             }
         }
         else if constexpr(kernel == kMid)
@@ -258,10 +296,10 @@ inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, cons
             int ti = begin, li = begin-r-1, ri = begin+r;   
             
             // initial acucmulation
-            for(int j=ti; j<ri; j++) 
+            for(int j=ti; j<ri; j++)
             for(int ch=0; ch<C; ++ch)
             {
-                acc[ch] += in[j*C+ch]; 
+                acc[ch] += in[j*C+ch];
             }
 
             // 1. left side out and right side in
@@ -271,24 +309,24 @@ inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, cons
                 acc[ch] += in[ri*C+ch];
                 // assert(acc[ch] >= 0);
                 const float inorm = 1.f / float(ri+1-begin);
-                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*inorm + round_v<T>();
             }
 
             // 4. left side out and right side out
             for(; li<begin; ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
-                out[ti*C+ch] = acc[ch]*iwidth + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iwidth + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
-                acc[ch] -= in[li*C+ch]; 
+                acc[ch] -= in[li*C+ch];
                 // assert(acc[ch] >= 0);
                 const float inorm = 1.f / float(end-li-1);
-                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*inorm + round_v<T>();
             }
         }
         else if constexpr(kernel == kSmall)
@@ -300,7 +338,7 @@ inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, cons
             for(int j=ti; j<ri; j++)
             for(int ch=0; ch<C; ++ch)
             {
-                acc[ch] += in[j*C+ch]; 
+                acc[ch] += in[j*C+ch];
             }
 
             // 1. left side out and right side in
@@ -310,56 +348,30 @@ inline void horizontal_blur_kernel_crop(const T * in, T * out, const int w, cons
                 acc[ch] += in[ri*C+ch];
                 // assert(acc[ch] >= 0);
                 const float inorm = 1.f / float(ri+1-begin);
-                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*inorm + round_v<T>();
             }
 
             // 2. left side in and right side in
-            for(; ri<end; ri++, ti++, li++) 
+            for(; ri<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
-                acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+                acc[ch] += in[ri*C+ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
-                acc[ch] -= in[li*C+ch]; 
+                acc[ch] -= in[li*C+ch];
                 // assert(acc[ch] >= 0);
                 const float inorm = 1.f / float(end-li-1);
-                out[ti*C+ch] = acc[ch]*inorm + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*inorm + round_v<T>();
             }
         }
     }
 }
-
-//! Helper to compute array indices for mirror and wrap border policies.
-struct Index
-{
-    //! wrap index
-    static inline int wrap(const int begin, const int end, const int index)
-    {
-        const int length = end-begin;
-        const int repeat = std::abs(index / length)+1; 
-        const int value = index + repeat * length;    
-        return begin+(value%length);
-    }
-
-    //! mirror without repetition index
-    static inline int mirror(const int begin, const int end, const int index)
-    {
-        if(index >= begin && index < end)
-            return index;
-
-        const int length = end-begin, last = end-1, slength = length-1;
-        const int pindex = index < begin ? last-index+slength : index-begin;
-        const int repeat = pindex / slength;
-        const int mod = pindex % slength;
-        return repeat%2 ? slength-mod+begin : mod+begin;
-    }
-};
 
 //!
 //! \brief This function performs a single separable horizontal box blur pass with mirror border policy.
@@ -384,7 +396,7 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
     for (int i = 0; i < h; i++)
     {
         const int begin = i*w;
-        const int end = begin+w; 
+        const int end = begin+w;
         calc_type acc[C] = { 0 };
 
         // current index, left index, right index
@@ -396,7 +408,7 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
             for(int j=li; j<ri; j++) 
             for(int ch=0; ch<C; ++ch)
             {
-                const int id = Index::mirror(begin, end, j); // mirrored id
+                const int id = remap_index<kMirror>(begin, end, j);
                 acc[ch] += in[id*C+ch];
             }
 
@@ -404,10 +416,10 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
             for(int j=0; j<w; j++, ri++, ti++, li++) 
             for(int ch=0; ch<C; ++ch)
             { 
-                const int rid = Index::mirror(begin, end, ri); // right mirrored id 
-                const int lid = Index::mirror(begin, end, li); // left mirrored id
+                const int rid = remap_index<kMirror>(begin, end, ri);
+                const int lid = remap_index<kMirror>(begin, end, li);
                 acc[ch] += in[rid*C+ch] - in[lid*C+ch];
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
         else if constexpr(kernel == kMid)
@@ -432,28 +444,28 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
                 const int lid = 2 * begin - li; // left mirrored id
                 acc[ch] += in[ri*C+ch] - in[lid*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 4. left side out and right side out
             for(; li<begin; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             { 
-                const int rid = 2 * end - 2 - ri;   // right mirrored id 
+                const int rid = 2 * end - 2 - ri;   // right mirrored id
                 const int lid = 2 * begin - li;     // left mirrored id
-                acc[ch] += in[rid*C+ch] - in[lid*C+ch]; 
+                acc[ch] += in[rid*C+ch] - in[lid*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             {
-                const int rid = 2*end-2-ri; // right mirrored id 
+                const int rid = 2*end-2-ri; // right mirrored id
                 acc[ch] += in[rid*C+ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
         else if constexpr(kernel == kSmall)
@@ -478,26 +490,26 @@ inline void horizontal_blur_mirror(const T* in, T* out, const int w, const int h
                 const int lid = 2 * begin - li; // left mirrored id
                 acc[ch] += in[ri*C+ch] - in[lid*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 2. left side in and right side in
             for(; ri<end; ri++, ti++, li++) 
             for(int ch=0; ch<C; ++ch)
             { 
-                acc[ch] += in[ri*C+ch] - in[li*C+ch]; 
+                acc[ch] += in[ri*C+ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
 
             // 3. left side in and right side out
             for(; ti<end; ri++, ti++, li++)
             for(int ch=0; ch<C; ++ch)
             {
-                const int rid = 2*end-2-ri; // right mirrored id 
+                const int rid = 2*end-2-ri; // right mirrored id
                 acc[ch] += in[rid*C+ch] - in[li*C+ch];
                 // assert(acc[ch] >= 0);
-                out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+                out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
             }
         }
     }
@@ -526,7 +538,7 @@ inline void horizontal_blur_wrap(const T* in, T* out, const int w, const int h, 
     for(int i=0; i<h; i++) 
     {
         const int begin = i*w;
-        const int end = begin+w; 
+        const int end = begin+w;
         int ti = begin, li = begin-r-1, ri = begin+r;   // current index, left index, right index
         calc_type acc[C] = { 0 };                       // sliding accumulator
 
@@ -534,18 +546,18 @@ inline void horizontal_blur_wrap(const T* in, T* out, const int w, const int h, 
         for(int j=li; j<ri; j++) 
         for(int ch=0; ch<C; ++ch)
         {
-            const int id = Index::wrap(begin, end, j); // wrapped id
+            const int id = remap_index<kWrap>(begin, end, j);
             acc[ch] += in[id*C+ch];
         }
 
         // perform filtering
         for(int j=0; j<w; j++, ri++, ti++, li++) 
         for(int ch=0; ch<C; ++ch)
-        { 
-            const int rid = Index::wrap(begin, end, ri); // right wrapped id 
-            const int lid = Index::wrap(begin, end, li); // left wrapped id
+        {
+            const int rid = remap_index<kWrap>(begin, end, ri);
+            const int lid = remap_index<kWrap>(begin, end, li);
             acc[ch] += in[rid*C+ch] - in[lid*C+ch];
-            out[ti*C+ch] = acc[ch]*iarr + (std::is_integral_v<T> ? 0.5f : 0.f); // fixes darkening with integer types
+            out[ti*C+ch] = acc[ch]*iarr + round_v<T>();
         }
     }
 }
@@ -685,10 +697,10 @@ inline void flip_block(const T * in, T * out, const int w, const int h, const in
 //! \param[in] sigma    Gaussian standard deviation
 //! \param[in] n        number of box blur pass
 //!
-inline float sigma_to_box_radius(int boxes[], const float sigma, const int n)  
+inline float sigma_to_box_radius(int boxes[], const float sigma, const int n)
 {
     // ideal filter width
-    float wi = std::sqrt((12*sigma*sigma/n)+1); 
+    float wi = std::sqrt((12*sigma*sigma/n)+1);
     int wl = wi; // no need std::floor  
     if(wl%2==0) wl--;
     int wu = wl+2;
@@ -737,7 +749,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
     sigma_to_box_radius(boxes, sigma, N);
 
     // perform N horizontal blur passes
-    for(unsigned int i = 0; i < N; ++i)
+    for(int i = 0; i < N; ++i)
     {
         horizontal_blur<T,P>(in, out, w, h, c, boxes[i]);
         std::swap(in, out);
@@ -748,7 +760,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
     std::swap(in, out);
     
     // perform N horizontal blur passes on flipped image
-    for(unsigned int i = 0; i < N; ++i)
+    for(int i = 0; i < N; ++i)
     {
         horizontal_blur<T,P>(in, out, h, w, c, boxes[i]);
         std::swap(in, out);
@@ -800,7 +812,7 @@ inline void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, cons
 //! \param[in] n            number of passes, should be > 0
 //!
 template<typename T, Border P = kMirror>
-void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n) 
+void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const uint32_t n)
 {
     switch(n)
     {
@@ -834,7 +846,15 @@ void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c
 //! \param[in] p            border policy {kExtend, kMirror, kKernelCrop, kWrap}
 //!
 template<typename T>
-void fast_gaussian_blur(T *& in, T *& out, const int w, const int h, const int c, const float sigma, const unsigned int n, const Border p)
+void fast_gaussian_blur(
+    T *& in,
+    T *& out,
+    const int w,
+    const int h,
+    const int c,
+    const float sigma,
+    const uint32_t n = 3,
+    const Border p = kExtend)
 {
     switch(p)
     {
