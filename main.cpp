@@ -9,32 +9,22 @@
 
 // fast blur
 #include "fast_gaussian_blur_template.h"
+#include "avx2_blur.h" // <--- Our new file
 
 typedef unsigned char uchar;
 
-// #define USE_FLOAT
-
 int main(int argc, char * argv[])
 {   
-    // helper
     if( argc < 4 )
     {
         printf("%s [input] [output] [sigma] [order - optional] [border - optional]\n", argv[0]);
-        printf("\n");
-        printf("- input:  extension should be any of [.jpg, .png, .bmp, .tga, .psd, .gif, .hdr, .pic, .pnm].\n");
-        printf("- output: extension should be any of [.png, .jpg, .bmp]. Unknown extensions will be saved as .png by default.\n");
-        printf("- sigma:  Gaussian standard deviation (float). Should be positive.\n");
-        printf("- order:  optional filter order [1: box, 2: bilinear, 3: biquadratic, 4. bicubic, ..., 10]. Should be positive.\n");
-        printf("          Default is 3 and current implementation supports up to 10 box blur passes, but one can easily add more in the code.\n");
-        printf("- border: optional treatment of image boundaries [mirror, extend, crop, wrap]. Default is mirror.\n");
-        printf("\n");
         exit(1);
     }
 
     // load image
     int width, height, channels;
     uchar * image_data = stbi_load(argv[1], &width, &height, &channels, 0);
-    printf("Source image: %s %dx%d (%d)\n", argv[1], width, height, channels);
+    printf("Source image: %s %dx%d (%d channels)\n", argv[1], width, height, channels);
 
     // read parameters
     const float sigma = std::atof(argv[3]);
@@ -47,35 +37,30 @@ int main(int argc, char * argv[])
     else if (policy == "wrap")      border = Border::kWrap;
     else                            border = Border::kMirror;
     
-    // temporary data
     std::size_t size = width * height * channels;
-#ifdef USE_FLOAT
-    float * new_image = new float[size];
-    float * old_image = new float[size];
-#else
     uchar * new_image = new uchar[size];
     uchar * old_image = new uchar[size];
-#endif
     
-    // channels copy r,g,b
     for(std::size_t i = 0; i < size; ++i)
     {
-#ifdef USE_FLOAT
-        old_image[i] = (float)image_data[i] / 255.f;
-#else
         old_image[i] = image_data[i];
-#endif
     }
     
     // stats
     auto start = std::chrono::system_clock::now(); 
     
-    // perform gaussian blur
-    // note: the implementation can work on any buffer types (uint8, uint16, uint32, int, float, double)
-    // note: both old and new buffer are modified
-    fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes, border);
+    // ---------------------------------------------------------
+    // THE ROUTER
+    // ---------------------------------------------------------
+    if (channels == 3) {
+        printf("Routing to Custom AVX2 RGB Blur...\n");
+        
+        fast_gaussian_blur_avx2(old_image, new_image, width, height, sigma);
+    } else {
+        printf("Routing to standard template blur...\n");
+        fast_gaussian_blur(old_image, new_image, width, height, channels, sigma, passes, border);
+    }
     
-    // stats
     auto end = std::chrono::system_clock::now();
     float elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(end-start).count();
     printf("Time %.4fms\n", elapsed);
@@ -83,11 +68,7 @@ int main(int argc, char * argv[])
     // convert result
     for(std::size_t i = 0; i < size; ++i)
     {
-#ifdef USE_FLOAT
-        image_data[i] = (uchar)(new_image[i] * 255.f);
-#else
         image_data[i] = (uchar)(new_image[i]);
-#endif
     }
 
     // save image
@@ -98,15 +79,10 @@ int main(int argc, char * argv[])
         stbi_write_jpg(argv[2], width, height, channels, image_data, 90);
     else
     {
-        if( ext != "png" )
-        {
-            printf("Image format '%s' not supported, writing default png\n", ext.c_str()); 
-            file = file.substr(0, file.size()-4) + std::string(".png");
-        }
+        if( ext != "png" ) file = file.substr(0, file.size()-4) + std::string(".png");
         stbi_write_png(file.c_str(), width, height, channels, image_data, channels*width);
     }
     
-    // clean memory
     stbi_image_free(image_data);
     delete[] new_image;
     delete[] old_image;
