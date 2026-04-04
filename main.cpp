@@ -54,8 +54,7 @@ int main(int argc, char * argv[])
     // ---------------------------------------------------------
     if (channels == 3) {
         printf("Routing to Custom AVX2 RGB Blur...\n");
-        // For testing, we will just pass a hardcoded radius of 10.
-        // Once the loops are working, we will add the multi-pass sigma logic.
+        
         fast_gaussian_blur_avx2(old_image, new_image, width, height, sigma);
     } else {
         printf("Routing to standard template blur...\n");
