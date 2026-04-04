@@ -6,7 +6,7 @@
 // to : https://mit-license.org/
 //
 #pragma once
-
+#include <immintrin.h>
 //!
 //! \file fast_gaussian_blur_template.h
 //! \author Basile Fraboni
